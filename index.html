@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudVault - File Management System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .file-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .sidebar-link:hover, .sidebar-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .announcement-card {
+            border-left: 4px solid #667eea;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #667eea;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #764ba2;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .toast {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <!-- Auth Section -->
+    <div id="auth-section" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+        <div class="glass-card rounded-2xl shadow-2xl w-full max-w-md p-8 fade-in">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 gradient-bg rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-cloud text-white text-2xl"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800">CloudVault</h1>
+                <p class="text-gray-500 mt-2">Secure file management made simple</p>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="login-form">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" id="login-email" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition" placeholder="you@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="login-password" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition" placeholder="••••••••">
+                    </div>
+                    <button onclick="login()" class="w-full btn-primary text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2">
+                        <span>Sign In</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+                <p class="text-center mt-6 text-gray-600">
+                    Don't have an account? 
+                    <a href="#" onclick="showSignup()" class="text-purple-600 font-semibold hover:underline">Sign up</a>
+                </p>
+            </div>
+            
+            <!-- Signup Form -->
+            <div id="signup-form" class="hidden">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <input type="text" id="signup-name" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition" placeholder="John Doe">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" id="signup-email" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition" placeholder="you@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                        <input type="password" id="signup-password" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition" placeholder="••••••••">
+                    </div>
+                    <button onclick="signup()" class="w-full btn-primary text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2">
+                        <span>Create Account</span>
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                </div>
+                <p class="text-center mt-6 text-gray-600">
+                    Already have an account? 
+                    <a href="#" onclick="showLogin()" class="text-purple-600 font-semibold hover:underline">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Section -->
+    <div id="app-section" class="hidden min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white shadow-xl min-h-screen fixed left-0 top-0 z-40">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-8">
+                    <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center">
+                        <i class="fas fa-cloud text-white"></i>
+                    </div>
+                    <span class="text-xl font-bold text-gray-800">CloudVault</span>
+                </div>
+                
+                <nav class="space-y-2">
+                    <a href="#" onclick="showPage('dashboard')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 transition active" data-page="dashboard">
+                        <i class="fas fa-home w-5"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" onclick="showPage('files')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 transition" data-page="files">
+                        <i class="fas fa-folder w-5"></i>
+                        <span>My Files</span>
+                    </a>
+                    <a href="#" onclick="showPage('upload')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 transition" data-page="upload">
+                        <i class="fas fa-cloud-upload-alt w-5"></i>
+                        <span>Upload</span>
+                    </a>
+                    <a href="#" onclick="showPage('admin')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 transition admin-only hidden" data-page="admin">
+                        <i class="fas fa-shield-alt w-5"></i>
+                        <span>Admin Panel</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="absolute bottom-0 left-0 right-0 p-6 border-t">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-purple-600"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p id="user-name" class="text-sm font-semibold text-gray-800 truncate">User</p>
+                        <p id="user-email" class="text-xs text-gray-500 truncate">user@email.com</p>
+                    </div>
+                </div>
+                <button onclick="logout()" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-xl transition">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 ml-64 p-8">
+            <!-- Dashboard Page -->
+            <div id="page-dashboard" class="page fade-in">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">Welcome back!</h1>
+                    <p class="text-gray-500 mt-1">Here's what's happening with your files</p>
+                </div>
+                
+                <!-- Announcements -->
+                <div class="mb-8">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fas fa-bullhorn text-purple-600"></i>
+                        Announcements
+                    </h2>
+                    <div id="announcements-container" class="space-y-4">
+                        <!-- Announcements will be loaded here -->
+                    </div>
+                </div>
+                
+                <!-- Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white rounded-2xl p-6 shadow-lg">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Total Files</p>
+                                <p id="stat-files" class="text-3xl font-bold text-gray-800">0</p>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-file text-blue-600 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-lg">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Storage Used</p>
+                                <p id="stat-storage" class="text-3xl font-bold text-gray-800">0 MB</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-database text-green-600 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-lg">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-gray-500 text-sm">Account Status</p>
+                                <p id="stat-status" class="text-3xl font-bold text-green-600">Active</p>
+                            </div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                <i class="fas fa-check-circle text-purple-600 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recent Files -->
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Recent Files</h2>
+                    <div id="recent-files" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Recent files will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Files Page -->
+            <div id="page-files" class="page hidden fade-in">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">My Files</h1>
+                        <p class="text-gray-500 mt-1">Manage all your uploaded files</p>
+                    </div>
+                    <button onclick="showPage('upload')" class="btn-primary text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2">
+                        <i class="fas fa-plus"></i>
+                        <span>Upload New</span>
+                    </button>
+                </div>
+                
+                <div id="files-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <!-- Files will be loaded here -->
+                </div>
+                
+                <div id="no-files" class="hidden text-center py-16">
+                    <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-folder-open text-gray-400 text-4xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-600">No files yet</h3>
+                    <p class="text-gray-400 mt-2">Upload your first file to get started</p>
+                </div>
+            </div>
+
+            <!-- Upload Page -->
+            <div id="page-upload" class="page hidden fade-in">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">Upload Files</h1>
+                    <p class="text-gray-500 mt-1">Drag and drop or click to upload</p>
+                </div>
+                
+                <div class="bg-white rounded-2xl p-8 shadow-lg">
+                    <div id="upload-zone" class="upload-zone rounded-2xl p-12 text-center cursor-pointer" onclick="document.getElementById('file-input').click()">
+                        <input type="file" id="file-input" class="hidden" multiple onchange="handleFileSelect(event)">
+                        <div class="w-20 h-20 gradient-bg rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-cloud-upload-alt text-white text-3xl"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold text-gray-700 mb-2">Drop files here</h3>
+                        <p class="text-gray-500">or click to browse from your computer</p>
+                        <p class="text-sm text-gray-400 mt-2">Max file size: 50MB</p>
+                    </div>
+                    
+                    <div id="upload-progress" class="hidden mt-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span id="upload-filename" class="text-sm font-medium text-gray-700">Uploading...</span>
+                            <span id="upload-percent" class="text-sm text-purple-600 font-semibold">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="upload-bar" class="gradient-bg h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Page -->
+            <div id="page-admin" class="page hidden fade-in">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-800">Admin Panel</h1>
+                    <p class="text-gray-500 mt-1">Manage users and announcements</p>
+                </div>
+                
+                <!-- Tabs -->
+                <div class="flex gap-4 mb-6">
+                    <button onclick="showAdminTab('users')" class="admin-tab px-6 py-3 rounded-xl font-semibold transition bg-purple-600 text-white" data-tab="users">
+                        <i class="fas fa-users mr-2"></i>Users
+                    </button>
+                    <button onclick="showAdminTab('announcements')" class="admin-tab px-6 py-3 rounded-xl font-semibold transition bg-gray-200 text-gray-600" data-tab="announcements">
+                        <i class="fas fa-bullhorn mr-2"></i>Announcements
+                    </button>
+                </div>
+                
+                <!-- Users Tab -->
+                <div id="admin-users" class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="p-6 border-b">
+                        <h2 class="text-xl font-semibold text-gray-800">All Users</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">User</th>
+                                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Email</th>
+                                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
+                                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Role</th>
+                                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-600">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <!-- Users will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Announcements Tab -->
+                <div id="admin-announcements" class="hidden">
+                    <div class="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-4">Create Announcement</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                                <input type="text" id="announcement-title" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition" placeholder="Announcement title">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                                <textarea id="announcement-message" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition resize-none" placeholder="Write your announcement..."></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                                <select id="announcement-type" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition">
+                                    <option value="info">Info</option>
+                                    <option value="warning">Warning</option>
+                                    <option value="success">Success</option>
+                                </select>
+                            </div>
+                            <button onclick="createAnnouncement()" class="btn-primary text-white px-6 py-3 rounded-xl font-semibold">
+                                <i class="fas fa-plus mr-2"></i>Create Announcement
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-2xl shadow-lg p-6">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-4">All Announcements</h2>
+                        <div id="admin-announcements-list" class="space-y-4">
+                            <!-- Announcements will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+   
+        // =====================================================
+        // SUPABASE CONFIGURATION
+        // =====================================================
+        // Replace these with your actual Supabase credentials
+        
+
+const SUPABASE_URL = 'https://pwzruhuaawuydeuyopmy.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_l0jJWhRPPTnlw0zH4XgF2Q_V3mCAiBE';
+        
+
+<script>
+  const SUPABASE_URL = "https://pwzruhuaawuydeuyopmy.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_l0jJWhRPPTnlw0zH4XgF2Q_V3mCAiBE";
+
+  const supabase = supabaseJs.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true
+      }
+    }
+  );
+</script>
+        
+        let currentUser = null;
+        let isAdmin = false;
+
+        // =====================================================
+        // TOAST NOTIFICATIONS
+        // =====================================================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
+            
+            const icons = {
+                success: 'fa-check-circle',
+                error: 'fa-exclamation-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            
+            toast.className = `toast ${colors[type]} text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 min-w-80`;
+            toast.innerHTML = `
+                <i class="fas ${icons[type]}"></i>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // =====================================================
+        // AUTHENTICATION
+        // =====================================================
+        function showLogin() {
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('signup-form').classList.add('hidden');
+        }
+
+        function showSignup() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('signup-form').classList.remove('hidden');
+        }
+
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            if (!email || !password) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+
+                if (error) throw error;
+                
+                showToast('Login successful!', 'success');
+                await initializeApp(data.user);
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function signup() {
+            const name = document.getElementById('signup-name').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+
+            if (!name || !email || !password) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: name,
+                            is_blocked: false,
+                            is_admin: false
+                        }
+                    }
+                });
+
+                if (error) throw error;
+
+                // Create user profile in users table
+                
+
+                showToast('Account created! Please check your email to verify.', 'success');
+                showLogin();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function logout() {
+            await supabase.auth.signOut();
+            currentUser = null;
+            isAdmin = false;
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('app-section').classList.add('hidden');
+            showToast('Logged out successfully', 'info');
+        }
+
+        async function checkAuth() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                await initializeApp(session.user);
+            }
+        }
+
+        async function initializeApp(user) {
+            currentUser = user;
+            
+            // Check if user is blocked
+            const { data: userProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (userProfile?.is_blocked) {
+                showToast('Your account has been blocked', 'error');
+                await logout();
+                return;
+            }
+
+            isAdmin = userProfile?.role === 'admin';
+           
+
+
+            
+            // Update UI
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('app-section').classList.remove('hidden');
+            document.getElementById('user-name').textContent = user.user_metadata?.full_name || 'User';
+            document.getElementById('user-email').textContent = user.email;
+            
+            // Show admin menu if admin
+            if (isAdmin) {
+                document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
+            }
+            
+            // Load initial data
+            loadDashboard();
+        }
+
+        // =====================================================
+        // PAGE NAVIGATION
+        // =====================================================
+        function showPage(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+            document.getElementById(`page-${page}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.dataset.page === page) {
+                    link.classList.add('active');
+                }
+            });
+            
+            // Load page data
+            switch(page) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'files':
+                    loadFiles();
+                    break;
+                case 'admin':
+                    if (isAdmin) loadAdminData();
+                    break;
+            }
+        }
+
+        function showAdminTab(tab) {
+            document.querySelectorAll('.admin-tab').forEach(t => {
+                t.classList.remove('bg-purple-600', 'text-white');
+                t.classList.add('bg-gray-200', 'text-gray-600');
+            });
+            
+            document.querySelector(`.admin-tab[data-tab="${tab}"]`).classList.remove('bg-gray-200', 'text-gray-600');
+            document.querySelector(`.admin-tab[data-tab="${tab}"]`).classList.add('bg-purple-600', 'text-white');
+            
+            document.getElementById('admin-users').classList.add('hidden');
+            document.getElementById('admin-announcements').classList.add('hidden');
+            document.getElementById(`admin-${tab}`).classList.remove('hidden');
+        }
+
+        // =====================================================
+        // DASHBOARD
+        // =====================================================
+        async function loadDashboard() {
+            await loadAnnouncements();
+            await loadStats();
+            await loadRecentFiles();
+        }
+
+        async function loadAnnouncements() {
+            const { data: announcements } = await supabase
+                .from('announcements')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            const container = document.getElementById('announcements-container');
+            
+            if (!announcements || announcements.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">No announcements at this time.</p>';
+                return;
+            }
+
+            const typeColors = {
+                info: 'border-blue-500 bg-blue-50',
+                warning: 'border-yellow-500 bg-yellow-50',
+                success: 'border-green-500 bg-green-50'
+            };
+
+            const typeIcons = {
+                info: 'fa-info-circle text-blue-500',
+                warning: 'fa-exclamation-triangle text-yellow-500',
+                success: 'fa-check-circle text-green-500'
+            };
+
+            container.innerHTML = announcements.map(a => `
+                <div class="announcement-card ${typeColors[a.type] || typeColors.info} rounded-xl p-4">
+                    <div class="flex items-start gap-3">
+                        <i class="fas ${typeIcons[a.type] || typeIcons.info} text-xl mt-1"></i>
+                        <div>
+                            <h3 class="font-semibold text-gray-800">${a.title}</h3>
+                            <p class="text-gray-600 mt-1">${a.message}</p>
+                            <p class="text-xs text-gray-400 mt-2">${new Date(a.created_at).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadStats() {
+            const { data: files } = await supabase.storage
+                .from('user-files')
+                .list(currentUser.id);
+
+            const fileCount = files?.length || 0;
+            let totalSize = 0;
+            
+            if (files) {
+                files.forEach(f => totalSize += f.metadata?.size || 0);
+            }
+
+            document.getElementById('stat-files').textContent = fileCount;
+            document.getElementById('stat-storage').textContent = formatSize(totalSize);
+        }
+
+        async function loadRecentFiles() {
+            const { data: files } = await supabase.storage
+                .from('user-files')
+                .list(currentUser.id, {
+                    limit: 6,
+                    sortBy: { column: 'created_at', order: 'desc' }
+                });
+
+            const container = document.getElementById('recent-files');
+            
+            if (!files || files.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 col-span-full">No files uploaded yet.</p>';
+                return;
+            }
+
+            container.innerHTML = files.map(file => createFileCard(file)).join('');
+        }
+
+        // =====================================================
+        // FILE MANAGEMENT
+        // =====================================================
+        async function loadFiles() {
+            const { data: files, error } = await supabase.storage
+                .from('user-files')
+                .list(currentUser.id);
+
+            const container = document.getElementById('files-container');
+            const noFiles = document.getElementById('no-files');
+            
+            if (!files || files.length === 0) {
+                container.classList.add('hidden');
+                noFiles.classList.remove('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            noFiles.classList.add('hidden');
+            container.innerHTML = files.map(file => createFileCard(file)).join('');
+        }
+
+        function createFileCard(file) {
+            const icon = getFileIcon(file.name);
+            const size = formatSize(file.metadata?.size || 0);
+            
+            return `
+                <div class="file-card bg-white rounded-2xl p-6 shadow-lg transition cursor-pointer">
+                    <div class="w-12 h-12 ${icon.bg} rounded-xl flex items-center justify-center mb-4">
+                        <i class="fas ${icon.icon} ${icon.color} text-xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-800 truncate" title="${file.name}">${file.name}</h3>
+                    <p class="text-sm text-gray-500 mt-1">${size}</p>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="downloadFile('${file.name}')" class="flex-1 bg-purple-100 text-purple-600 py-2 rounded-lg hover:bg-purple-200 transition">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button onclick="deleteFile('${file.name}')" class="flex-1 bg-red-100 text-red-600 py-2 rounded-lg hover:bg-red-200 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                pdf: { icon: 'fa-file-pdf', color: 'text-red-500', bg: 'bg-red-100' },
+                doc: { icon: 'fa-file-word', color: 'text-blue-500', bg: 'bg-blue-100' },
+                docx: { icon: 'fa-file-word', color: 'text-blue-500', bg: 'bg-blue-100' },
+                xls: { icon: 'fa-file-excel', color: 'text-green-500', bg: 'bg-green-100' },
+                xlsx: { icon: 'fa-file-excel', color: 'text-green-500', bg: 'bg-green-100' },
+                png: { icon: 'fa-file-image', color: 'text-purple-500', bg: 'bg-purple-100' },
+                jpg: { icon: 'fa-file-image', color: 'text-purple-500', bg: 'bg-purple-100' },
+                jpeg: { icon: 'fa-file-image', color: 'text-purple-500', bg: 'bg-purple-100' },
+                gif: { icon: 'fa-file-image', color: 'text-purple-500', bg: 'bg-purple-100' },
+                mp4: { icon: 'fa-file-video', color: 'text-pink-500', bg: 'bg-pink-100' },
+                mp3: { icon: 'fa-file-audio', color: 'text-yellow-500', bg: 'bg-yellow-100' },
+                zip: { icon: 'fa-file-archive', color: 'text-orange-500', bg: 'bg-orange-100' },
+                rar: { icon: 'fa-file-archive', color: 'text-orange-500', bg: 'bg-orange-100' }
+            };
+            return icons[ext] || { icon: 'fa-file', color: 'text-gray-500', bg: 'bg-gray-100' };
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Drag and drop handling
+        const uploadZone = document.getElementById('upload-zone');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadZone?.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadZone?.addEventListener(eventName, () => {
+                uploadZone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadZone?.addEventListener(eventName, () => {
+                uploadZone.classList.remove('dragover');
+            }, false);
+        });
+
+        uploadZone?.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            handleFiles(files);
+        }, false);
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            handleFiles(files);
+        }
+
+        async function handleFiles(files) {
+            for (const file of files) {
+                await uploadFile(file);
+            }
+        }
+
+        async function uploadFile(file) {
+            const progressDiv = document.getElementById('upload-progress');
+            const filename = document.getElementById('upload-filename');
+            const percent = document.getElementById('upload-percent');
+            const bar = document.getElementById('upload-bar');
+
+            progressDiv.classList.remove('hidden');
+            filename.textContent = file.name;
+            
+            try {
+                // Simulate progress (Supabase doesn't provide real progress)
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += Math.random() * 15;
+                    if (progress > 90) progress = 90;
+                    percent.textContent = Math.round(progress) + '%';
+                    bar.style.width = progress + '%';
+                }, 200);
+
+                const { data, error } = await supabase.storage
+                    .from('user-files')
+                    .upload(`${currentUser.id}/${file.name}`, file, {
+                        upsert: true
+                    });
+
+                clearInterval(progressInterval);
+                
+                if (error) throw error;
+
+                percent.textContent = '100%';
+                bar.style.width = '100%';
+                
+                showToast('File uploaded successfully!', 'success');
+                
+                setTimeout(() => {
+                    progressDiv.classList.add('hidden');
+                    bar.style.width = '0%';
+                }, 1000);
+
+                loadFiles();
+                loadStats();
+            } catch (error) {
+                showToast(error.message, 'error');
+                progressDiv.classList.add('hidden');
+            }
+        }
+
+        async function downloadFile(filename) {
+            try {
+                const { data, error } = await supabase.storage
+                    .from('user-files')
+                    .download(`${currentUser.id}/${filename}`);
+
+                if (error) throw error;
+
+                const url = URL.createObjectURL(data);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast('Download started!', 'success');
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function deleteFile(filename) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+
+            try {
+                const { error } = await supabase.storage
+                    .from('user-files')
+                    .remove([`${currentUser.id}/${filename}`]);
+
+                if (error) throw error;
+
+                showToast('File deleted successfully!', 'success');
+                loadFiles();
+                loadStats();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        // =====================================================
+        // ADMIN FUNCTIONS
+        // =====================================================
+        async function loadAdminData() {
+            await loadUsers();
+            await loadAdminAnnouncements();
+        }
+
+        async function loadUsers() {
+            const { data: users } = await supabase
+                .from('profiles')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            const tbody = document.getElementById('users-table-body');
+            
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No users found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(user => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-user text-purple-600"></i>
+                            </div>
+                            <span class="font-medium text-gray-800">${ document.getElementById('user-name').textContent = user.email;
+   || 'Unknown'}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600">${user.email}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold ${user.is_blocked ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}">
+                            ${user.is_blocked ? 'Blocked' : 'Active'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-600'}">
+                            
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        ${user.id !== currentUser.id ? `
+                            <button onclick="toggleBlockUser('${user.id}', ${!user.is_blocked})" class="px-4 py-2 rounded-lg text-sm font-medium ${user.is_blocked ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-red-100 text-red-600 hover:bg-red-200'} transition">
+                                ${user.is_blocked ? 'Unblock' : 'Block'}
+                            </button>
+                        ` : '<span class="text-gray-400">-</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function toggleBlockUser(userId, block) {
+            try {
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({ is_blocked: block })
+                    .eq('id', userId);
+
+                if (error) throw error;
+
+                showToast(`User ${block ? 'blocked' : 'unblocked'} successfully!`, 'success');
+                loadUsers();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function loadAdminAnnouncements() {
+            const { data: announcements } = await supabase
+                .from('announcements')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            const container = document.getElementById('admin-announcements-list');
+            
+            if (!announcements || announcements.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">No announcements yet.</p>';
+                return;
+            }
+
+            container.innerHTML = announcements.map(a => `
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div>
+                        <h3 class="font-semibold text-gray-800">${a.title}</h3>
+                        <p class="text-sm text-gray-600">${a.message}</p>
+                        <p class="text-xs text-gray-400 mt-1">${new Date(a.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <button onclick="deleteAnnouncement('${a.id}')" class="p-2 text-red-600 hover:bg-red-100 rounded-lg transition">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function createAnnouncement() {
+            const title = document.getElementById('announcement-title').value;
+            const message = document.getElementById('announcement-message').value;
+            const type = document.getElementById('announcement-type').value;
+
+            if (!title || !message) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            try {
+                const { error } = await supabase
+                    .from('announcements')
+                    .insert({
+                        title,
+                        message,
+                        type,
+                        created_by: currentUser.id
+                    });
+
+                if (error) throw error;
+
+                showToast('Announcement created!', 'success');
+                document.getElementById('announcement-title').value = '';
+                document.getElementById('announcement-message').value = '';
+                loadAdminAnnouncements();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        async function deleteAnnouncement(id) {
+            if (!confirm('Are you sure you want to delete this announcement?')) return;
+
+            try {
+                const { error } = await supabase
+                    .from('announcements')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) throw error;
+
+                showToast('Announcement deleted!', 'success');
+                loadAdminAnnouncements();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        }
+
+        // =====================================================
+        // INITIALIZE
+        // =====================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            
+            // Listen for auth state changes
+            supabase.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_IN' && session) {
+                    initializeApp(session.user);
+                } else if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    isAdmin = false;
+                    document.getElementById('auth-section').classList.remove('hidden');
+                    document.getElementById('app-section').classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
