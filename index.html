@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Upload App</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Supabase v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+
+  <!-- AUTH -->
+  <div id="auth" class="w-full max-w-md bg-white rounded-2xl shadow p-6">
+    <h1 class="text-2xl font-bold text-center mb-6">Welcome</h1>
+
+    <!-- LOGIN -->
+    <div id="loginBox">
+      <input id="loginEmail" class="w-full mb-3 p-3 border rounded" placeholder="Email">
+      <input id="loginPassword" type="password" class="w-full mb-4 p-3 border rounded" placeholder="Password">
+
+      <button id="loginBtn" type="button"
+        class="w-full bg-blue-600 text-white py-3 rounded-lg">
+        Login
+      </button>
+
+      <p class="text-center mt-4 text-sm">
+        No account?
+        <button id="showSignupBtn" class="text-blue-600 underline">Sign up</button>
+      </p>
+    </div>
+
+    <!-- SIGNUP -->
+    <div id="signupBox" class="hidden">
+      <input id="signupName" class="w-full mb-3 p-3 border rounded" placeholder="Name">
+      <input id="signupEmail" class="w-full mb-3 p-3 border rounded" placeholder="Email">
+      <input id="signupPassword" type="password" class="w-full mb-4 p-3 border rounded" placeholder="Password">
+
+      <button id="signupBtn" type="button"
+        class="w-full bg-green-600 text-white py-3 rounded-lg">
+        Sign Up
+      </button>
+
+      <p class="text-center mt-4 text-sm">
+        Already have account?
+        <button id="showLoginBtn" class="text-blue-600 underline">Login</button>
+      </p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden w-full max-w-xl bg-white rounded-2xl shadow p-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold">Your Files</h2>
+      <button id="logoutBtn" class="text-red-600">Logout</button>
+    </div>
+
+    <input type="file" id="fileInput" class="mb-4">
+
+    <button id="uploadBtn"
+      class="w-full bg-purple-600 text-white py-3 rounded-lg mb-4">
+      Upload File
+    </button>
+
+    <ul id="fileList" class="space-y-2"></ul>
+  </div>
+
+  <!-- SCRIPT -->
+  <script>
+    /* ================= SUPABASE ================= */
+    const SUPABASE_URL = "https://pwzruhuaawuydeuyopmy.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_l0jJWhRPPTnlw0zH4XgF2Q_V3mCAiBE";
+
+    const supabase = supabaseJs.createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      { auth: { persistSession: true } }
+    );
+
+    let currentUser = null;
+
+    /* ================= UI HELPERS ================= */
+    const authBox = document.getElementById("auth");
+    const appBox = document.getElementById("app");
+    const loginBox = document.getElementById("loginBox");
+    const signupBox = document.getElementById("signupBox");
+
+    function showLogin() {
+      signupBox.classList.add("hidden");
+      loginBox.classList.remove("hidden");
+    }
+
+    function showSignup() {
+      loginBox.classList.add("hidden");
+      signupBox.classList.remove("hidden");
+    }
+
+    function showApp() {
+      authBox.classList.add("hidden");
+      appBox.classList.remove("hidden");
+      loadFiles();
+    }
+
+    /* ================= AUTH ================= */
+    async function signup() {
+      const email = signupEmail.value.trim();
+      const password = signupPassword.value;
+      const name = signupName.value.trim();
+
+      if (!email || !password || !name) {
+        alert("All fields required");
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name } }
+      });
+
+      if (error) alert(error.message);
+      else alert("Check your email to confirm signup");
+    }
+
+    async function login() {
+      const email = loginEmail.value.trim();
+      const password = loginPassword.value;
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) alert(error.message);
+      else {
+        currentUser = data.user;
+        showApp();
+      }
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      location.reload();
+    }
+
+    /* ================= FILES ================= */
+    async function uploadFile() {
+      const file = fileInput.files[0];
+      if (!file) return alert("Select a file");
+
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session.user.id;
+
+      const { error } = await supabase.storage
+        .from("user-files")
+        .upload(`${userId}/${file.name}`, file, { upsert: true });
+
+      if (error) alert(error.message);
+      else {
+        alert("Uploaded");
+        loadFiles();
+      }
+    }
+
+    async function loadFiles() {
+      fileList.innerHTML = "";
+
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session.user.id;
+
+      const { data: files } = await supabase.storage
+        .from("user-files")
+        .list(userId);
+
+      files.forEach(f => {
+        const li = document.createElement("li");
+        li.className = "flex justify-between bg-gray-100 p-2 rounded";
+        li.innerHTML = `
+          <span>${f.name}</span>
+          <button class="text-red-600">Delete</button>
+        `;
+        li.querySelector("button").addEventListener("click", () => deleteFile(f.name));
+        fileList.appendChild(li);
+      });
+    }
+
+    async function deleteFile(name) {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session.user.id;
+
+      await supabase.storage
+        .from("user-files")
+        .remove([`${userId}/${name}`]);
+
+      loadFiles();
+    }
+
+    /* ================= EVENTS ================= */
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Button events
+      loginBtn.addEventListener("click", login);
+      signupBtn.addEventListener("click", signup);
+      logoutBtn.addEventListener("click", logout);
+      uploadBtn.addEventListener("click", uploadFile);
+      showSignupBtn.addEventListener("click", showSignup);
+      showLoginBtn.addEventListener("click", showLogin);
+
+      // Auto login
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        currentUser = data.session.user;
+        showApp();
+      }
+    });
+  </script>
+
+</body>
+</html>
