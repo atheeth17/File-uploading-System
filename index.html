@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudVault - Multi-Cloud Management</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+        body {
+            background: radial-gradient(circle at top left, #0f172a, #020617);
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.25rem;
+        }
+        .marquee {
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .marquee-content {
+            display: inline-block;
+            animation: marquee 25s linear infinite;
+        }
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        .sidebar-item.active {
+            background: rgba(59, 130, 246, 0.2);
+            border-right: 4px solid #3b82f6;
+            color: #60a5fa;
+        }
+        .tab-content { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="font-sans">
+
+    <!-- Auth Container -->
+    <div id="auth-screen" class="flex items-center justify-center min-h-screen p-6">
+        <div class="glass-card p-8 w-full max-w-md shadow-2xl">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-blue-400">CloudVault</h1>
+                <p class="text-slate-400">Secure Multi-Cloud Storage</p>
+            </div>
+            
+            <div id="auth-form-container">
+                <div class="flex mb-6 bg-slate-800/50 p-1 rounded-lg">
+                    <button onclick="toggleAuthMode('login')" id="tab-login" class="flex-1 py-2 rounded-md bg-blue-600 text-white font-medium transition">Login</button>
+                    <button onclick="toggleAuthMode('signup')" id="tab-signup" class="flex-1 py-2 rounded-md text-slate-400 font-medium transition">Signup</button>
+                </div>
+
+                <!-- Credentials Form -->
+                <div id="credentials-section" class="space-y-4">
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-400 uppercase">Email Address</label>
+                        <input type="email" id="auth-email" class="w-full p-3 rounded bg-slate-900 border border-slate-700 focus:outline-none focus:border-blue-500 transition" placeholder="name@company.com">
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-xs font-semibold text-slate-400 uppercase">Password</label>
+                        <input type="password" id="auth-password" class="w-full p-3 rounded bg-slate-900 border border-slate-700 focus:outline-none focus:border-blue-500 transition" placeholder="••••••••">
+                    </div>
+                    <div id="confirm-password-group" class="hidden">
+                        <label class="block mb-1 text-xs font-semibold text-slate-400 uppercase">Confirm Password</label>
+                        <input type="password" id="auth-confirm-password" class="w-full p-3 rounded bg-slate-900 border border-slate-700 focus:outline-none focus:border-blue-500 transition" placeholder="••••••••">
+                    </div>
+
+                    <button onclick="handleEmailAuth()" id="auth-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition transform active:scale-95">
+                        Login to Account
+                    </button>
+                </div>
+
+                <!-- OTP Verification Form (Hidden by default) -->
+                <div id="otp-verification-section" class="hidden space-y-6 pt-4">
+                    <div class="text-center">
+                        <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-900/30 text-blue-400 mb-4">
+                            <i class="fas fa-envelope-open-text text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">Verify your Email</h3>
+                        <p class="text-slate-400 text-sm mt-2">We've sent a 6-digit code to <br><span id="otp-email-display" class="text-blue-300 font-semibold"></span></p>
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-2 text-xs font-semibold text-slate-400 uppercase text-center">Enter 6-digit Code</label>
+                        <input type="text" id="auth-otp" maxlength="6" class="w-full p-4 rounded bg-slate-900 border border-slate-700 focus:outline-none focus:border-blue-500 transition text-center text-2xl tracking-[0.5em] font-mono" placeholder="000000">
+                    </div>
+
+                    <button onclick="verifyOtp()" id="otp-verify-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition transform active:scale-95">
+                        Verify & Complete
+                    </button>
+                    
+                    <button onclick="toggleAuthMode('signup')" class="w-full text-slate-500 text-xs hover:text-slate-300 transition">
+                        <i class="fas fa-arrow-left mr-1"></i> Back to Signup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Container (Hidden by default) -->
+    <div id="dashboard-screen" class="hidden flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-64 glass-card m-4 mr-2 hidden md:flex flex-col">
+            <div class="p-6 border-b border-slate-700">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="fas fa-cloud text-blue-400"></i> CloudVault
+                </h2>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button onclick="switchTab('user-home')" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                    <i class="fas fa-home mr-3"></i> Dashboard
+                </button>
+                <button onclick="switchTab('cloud-list')" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                    <i class="fas fa-server mr-3"></i> Cloud Services
+                </button>
+                <button onclick="switchTab('my-files')" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                    <i class="fas fa-file-alt mr-3"></i> My Files
+                </button>
+                <div id="admin-nav" class="hidden pt-6">
+                    <p class="text-xs font-bold text-slate-500 uppercase px-3 mb-2">Admin Panel</p>
+                    <button onclick="switchTab('admin-stats')" id="btn-admin-stats" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                        <i class="fas fa-chart-line mr-3"></i> Statistics
+                    </button>
+                    <button onclick="switchTab('admin-users')" id="btn-admin-users" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                        <i class="fas fa-users mr-3"></i> Manage Users
+                    </button>
+                    <button onclick="switchTab('admin-files')" id="btn-admin-files" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                        <i class="fas fa-folder-open mr-3"></i> All Files
+                    </button>
+                </div>
+                <div class="pt-6">
+                    <p class="text-xs font-bold text-slate-500 uppercase px-3 mb-2">Account</p>
+                    <button onclick="switchTab('user-profile')" id="btn-user-profile" class="sidebar-item w-full text-left p-3 rounded-lg hover:bg-slate-700 transition">
+                        <i class="fas fa-user-circle mr-3"></i> My Profile
+                    </button>
+                </div>
+            </nav>
+            <div class="p-4 border-t border-slate-700">
+                <div class="flex items-center gap-3 p-2 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold" id="user-avatar">?</div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs font-bold truncate" id="user-email-display">user@example.com</p>
+                        <p class="text-[10px] text-blue-400 uppercase" id="user-role-display">User</p>
+                    </div>
+                </div>
+                <button onclick="handleLogout()" class="w-full p-2 text-sm text-red-400 hover:bg-red-900/20 rounded border border-red-900/30 transition">
+                    <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden relative">
+            <!-- Top Marquee -->
+            <div id="marquee-container" class="bg-blue-900/30 border-b border-blue-800/50 py-2 px-4 marquee hidden">
+                <div class="marquee-content text-sm text-blue-300 font-medium" id="marquee-text">
+                    Welcome to CloudVault. Manage all your cloud storage in one place.
+                </div>
+            </div>
+
+            <header class="p-4 flex justify-between items-center md:hidden border-b border-slate-800">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="fas fa-cloud text-blue-400"></i> CloudVault
+                </h2>
+                <button onclick="toggleMobileMenu()" class="text-2xl text-slate-400"><i class="fas fa-bars"></i></button>
+            </header>
+
+            <div id="content-area" class="flex-1 overflow-y-auto p-4 md:p-8 tab-content">
+                <!-- Tabs will be rendered here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div id="modal-content" class="glass-card w-full max-w-lg p-6">
+            <!-- Dynamic Modal Content -->
+        </div>
+    </div>
+
+    <script>
+        // --- SUPABASE CONFIG ---
+        const SUPABASE_URL = 'https://qzxnbcodcejznudyxozx.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_LDIArMkJY941jll4GPoIuQ_3UJitsB7';
+        
+        // Initialize Supabase client correctly
+        // Ensure we don't overwrite the global 'supabase' library object with the client instance
+        const SUPABASE_URL_VAL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY_VAL = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const { createClient } = window.supabase;
+        const supabaseClient = createClient(SUPABASE_URL_VAL, SUPABASE_ANON_KEY_VAL);
+        
+        // Define a global app client that doesn't conflict with the library name
+        window.supabaseClient = supabaseClient;
+        
+        // Verify initialization
+        console.log("Supabase Client initialized:", !!window.supabaseClient);
+
+        // --- STATE ---
+        let currentUser = null;
+        let profile = null;
+        let activeTab = 'user-home';
+
+        // --- CLOUD SERVICES LIST ---
+        const cloudServices = [
+            { name: "Google Drive", free: "15GB", expiry: "No expiry", note: "Integrated with Workspace" },
+            { name: "Dropbox", free: "2GB", expiry: "No expiry", note: "File versioning" },
+            { name: "OneDrive", free: "5GB", expiry: "No expiry", note: "Microsoft 365 integration" },
+            { name: "Mega", free: "20GB", expiry: "Limited inactivity", note: "End-to-end encryption" },
+            { name: "MediaFire", free: "10GB", expiry: "File inactivity", note: "Ad-supported" },
+            { name: "Box", free: "10GB", expiry: "No expiry", note: "Business focus" },
+            { name: "pCloud", free: "10GB", expiry: "No expiry", note: "Swiss based" },
+            { name: "iCloud", free: "5GB", expiry: "No expiry", note: "Apple ecosystem" },
+            { name: "Sync.com", free: "5GB", expiry: "No expiry", note: "High privacy" },
+            { name: "Yandex Disk", free: "10GB", expiry: "No expiry", note: "Good for photos" },
+            { name: "Degoo", free: "100GB", expiry: "Inactivity expiry", note: "Mobile first" },
+            { name: "Koofr", free: "10GB", expiry: "No expiry", note: "Link existing clouds" },
+            { name: "TeraBox", free: "1TB", expiry: "Inactivity expiry", note: "Massive storage" },
+            { name: "IceDrive", free: "10GB", expiry: "No expiry", note: "Crystal encryption" },
+            { name: "Internxt", free: "10GB", expiry: "No expiry", note: "Web3/Privacy" },
+            { name: "Zoho WorkDrive", free: "5GB", expiry: "No expiry", note: "Team collaboration" },
+            { name: "OpenDrive", free: "5GB", expiry: "No expiry", note: "Mountable drive" },
+            { name: "Filen", free: "10GB", expiry: "No expiry", note: "Zero knowledge" },
+            { name: "Backblaze B2", free: "10GB", expiry: "Pay-as-you-go", note: "S3 compatible" },
+            { name: "Wasabi", free: "Trial", expiry: "Trial expiry", note: "Hot cloud storage" }
+        ];
+
+        // --- AUTH LOGIC ---
+        let authMode = 'login';
+
+        function toggleAuthMode(mode) {
+            authMode = mode;
+            const loginTab = document.getElementById('tab-login');
+            const signupTab = document.getElementById('tab-signup');
+            const confirmGroup = document.getElementById('confirm-password-group');
+            const submitBtn = document.getElementById('auth-submit-btn');
+            const otpSection = document.getElementById('otp-verification-section');
+            const credentialsSection = document.getElementById('credentials-section');
+
+            // Reset UI state
+            otpSection.classList.add('hidden');
+            credentialsSection.classList.remove('hidden');
+
+            if (mode === 'login') {
+                loginTab.classList.add('bg-blue-600', 'text-white');
+                loginTab.classList.remove('text-slate-400');
+                signupTab.classList.remove('bg-blue-600', 'text-white');
+                signupTab.classList.add('text-slate-400');
+                confirmGroup.classList.add('hidden');
+                submitBtn.innerText = 'Login to Account';
+            } else {
+                signupTab.classList.add('bg-blue-600', 'text-white');
+                signupTab.classList.remove('text-slate-400');
+                loginTab.classList.remove('bg-blue-600', 'text-white');
+                loginTab.classList.add('text-slate-400');
+                confirmGroup.classList.remove('hidden');
+                submitBtn.innerText = 'Create Account';
+            }
+        }
+
+        async function handleEmailAuth() {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const btn = document.getElementById('auth-submit-btn');
+
+            if (!email || !password) return alert('Please fill all fields');
+            
+            btn.innerText = authMode === 'login' ? 'Logging in...' : 'Sending OTP...';
+            btn.disabled = true;
+
+            try {
+                if (authMode === 'signup') {
+                    const confirmPassword = document.getElementById('auth-confirm-password').value;
+                    if (password !== confirmPassword) {
+                        alert("Passwords do not match");
+                        return;
+                    }
+
+                    const { data, error } = await window.supabaseClient.auth.signUp({
+                        email,
+                        password,
+                        options: { emailRedirectTo: window.location.origin }
+                    });
+
+                    if (error) throw error;
+                    
+                    document.getElementById('credentials-section').classList.add('hidden');
+                    document.getElementById('otp-verification-section').classList.remove('hidden');
+                    document.getElementById('otp-email-display').innerText = email;
+                } else {
+                    const { data, error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    checkSession();
+                }
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = authMode === 'login' ? 'Login to Account' : 'Create Account';
+            }
+        }
+
+        async function verifyOtp() {
+            const email = document.getElementById('auth-email').value;
+            const token = document.getElementById('auth-otp').value;
+            const btn = document.getElementById('otp-verify-btn');
+
+            if (token.length !== 6) return alert('Please enter the 6-digit code');
+
+            btn.innerText = 'Verifying...';
+            btn.disabled = true;
+
+            try {
+                const { data, error } = await window.supabaseClient.auth.verifyOtp({
+                    email,
+                    token,
+                    type: 'signup'
+                });
+
+                if (error) throw error;
+                alert('Account verified successfully!');
+                checkSession();
+            } catch (err) {
+                alert('Verification failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Verify & Complete';
+            }
+        }
+
+        async function handleLogout() {
+            await window.supabaseClient.auth.signOut();
+            window.location.reload();
+        }
+
+        // --- UI ROUTING ---
+        async function checkSession() {
+            try {
+                const { data: { session } } = await window.supabaseClient.auth.getSession();
+                if (session) {
+                    currentUser = session.user;
+                    await fetchProfile();
+                    if (profile.is_blocked) {
+                        await window.supabaseClient.auth.signOut();
+                        alert("Your account is blocked.");
+                        return;
+                    }
+                    document.getElementById('auth-screen').classList.add('hidden');
+                    document.getElementById('dashboard-screen').classList.remove('hidden');
+                    document.getElementById('user-email-display').innerText = currentUser.email;
+                    document.getElementById('user-avatar').innerText = currentUser.email.charAt(0).toUpperCase();
+                    
+                    if (profile.role === 'admin') {
+                        document.getElementById('admin-nav').classList.remove('hidden');
+                        document.getElementById('user-role-display').innerText = 'Administrator';
+                    }
+                    
+                    loadMarquee();
+                    switchTab('user-home');
+                }
+            } catch (err) {
+                console.error("Session check failed", err);
+            }
+        }
+
+        async function fetchProfile() {
+            let { data, error } = await window.supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
+            if (!data) {
+                const { data: newProfile, error: insError } = await window.supabaseClient.from('profiles').insert([
+                    { id: currentUser.id, email: currentUser.email, role: 'user' }
+                ]).select().single();
+                data = newProfile;
+            }
+            profile = data;
+        }
+
+        async function loadMarquee() {
+            const { data } = await window.supabaseClient.from('announcements')
+                .select('content')
+                .eq('is_marquee', true)
+                .order('created_at', { ascending: false })
+                .limit(1);
+            
+            if (data && data.length > 0) {
+                document.getElementById('marquee-text').innerText = data[0].content;
+                document.getElementById('marquee-container').classList.remove('hidden');
+            } else {
+                document.getElementById('marquee-container').classList.add('hidden');
+            }
+        }
+
+        function switchTab(tab) {
+            activeTab = tab;
+            const content = document.getElementById('content-area');
+            
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            const btnMap = {
+                'user-home': 'btn-user-home',
+                'cloud-list': 'btn-cloud-list',
+                'my-files': 'btn-my-files',
+                'admin-stats': 'btn-admin-stats',
+                'admin-users': 'btn-admin-users',
+                'admin-files': 'btn-admin-files',
+                'user-profile': 'btn-user-profile'
+            };
+            if (btnMap[tab]) {
+                const btn = document.getElementById(btnMap[tab]);
+                if (btn) btn.classList.add('active');
+            }
+            
+            if (tab === 'user-home') renderUserHome(content);
+            if (tab === 'cloud-list') renderCloudList(content);
+            if (tab === 'my-files') renderUserFiles(content);
+            if (tab === 'admin-stats') renderAdminStats(content);
+            if (tab === 'admin-users') renderAdminUsers(content);
+            if (tab === 'admin-files') renderAdminFiles(content);
+            if (tab === 'user-profile') renderUserProfile(content);
+            
+            // Close mobile menu if open
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('hidden') && window.innerWidth < 768) {
+                toggleMobileMenu();
+            }
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('hidden');
+            sidebar.classList.toggle('fixed');
+            sidebar.classList.toggle('inset-0');
+            sidebar.classList.toggle('z-50');
+            sidebar.classList.toggle('m-0');
+            sidebar.classList.toggle('w-full');
+        }
+
+        async function renderUserProfile(container) {
+            const { data: files } = await window.supabaseClient.from('files').select('size');
+            const totalUsed = files?.reduce((acc, curr) => acc + curr.size, 0) || 0;
+            const mbUsed = (totalUsed / 1024 / 1024).toFixed(2);
+
+            container.innerHTML = `
+                <h2 class="text-2xl font-bold mb-6">Profile Settings</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass-card p-6">
+                        <div class="flex items-center gap-4 mb-6">
+                            <div class="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-3xl font-bold">
+                                ${currentUser.email.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">${currentUser.email}</h3>
+                                <p class="text-blue-400 text-sm uppercase font-semibold tracking-wider">${profile.role}</p>
+                            </div>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <p class="text-slate-400 text-xs font-bold uppercase mb-1">Account ID</p>
+                                <p class="text-sm font-mono bg-slate-800/50 p-2 rounded">${currentUser.id}</p>
+                            </div>
+                            <div>
+                                <p class="text-slate-400 text-xs font-bold uppercase mb-1">Status</p>
+                                <p class="text-sm">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        Active Account
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card p-6">
+                        <h3 class="text-lg font-bold mb-4">Storage Consumption</h3>
+                        <div class="relative pt-1">
+                            <div class="flex mb-2 items-center justify-between">
+                                <div>
+                                    <span class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
+                                        Usage
+                                    </span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-xs font-semibold inline-block text-blue-600">
+                                        ${mbUsed} MB / ∞
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-200">
+                                <div style="width:5%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500"></div>
+                            </div>
+                            <p class="text-xs text-slate-400">CloudVault does not impose a hard limit on total aggregated storage across your connected services.</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- DASHBOARD RENDERERS ---
+
+        async function renderUserHome(container) {
+            const { data: globalAnn } = await window.supabaseClient.from('announcements').select('*').is('target_user_id', null).eq('is_marquee', false).order('created_at', { ascending: false });
+            const { data: personalAnn } = await window.supabaseClient.from('announcements').select('*').eq('target_user_id', currentUser.id).order('created_at', { ascending: false });
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass-card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold">Quick Upload</h3>
+                            <i class="fas fa-upload text-blue-400"></i>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Target Cloud Provider</label>
+                                <select id="upload-cloud" class="w-full mt-1 p-3 bg-slate-800 rounded-lg border border-slate-700 focus:border-blue-500 outline-none">
+                                    ${cloudServices.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="border-2 border-dashed border-slate-700 rounded-xl p-10 text-center hover:border-blue-500 hover:bg-blue-500/5 transition cursor-pointer group" onclick="document.getElementById('file-input').click()">
+                                <i class="fas fa-cloud-upload-alt text-5xl mb-3 text-slate-600 group-hover:text-blue-400 transition"></i>
+                                <p class="text-slate-400 group-hover:text-slate-200">Drag and drop or <span class="text-blue-400">browse</span></p>
+                                <p class="text-[10px] text-slate-600 mt-2">Maximum file size: 50MB</p>
+                                <input type="file" id="file-input" class="hidden" onchange="handleFileUpload(this)">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="glass-card p-6 overflow-hidden flex flex-col">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold">Announcements</h3>
+                            <i class="fas fa-bullhorn text-blue-400"></i>
+                        </div>
+                        <div class="space-y-3 flex-1 overflow-y-auto max-h-[300px] pr-2">
+                            ${[...(personalAnn || []), ...(globalAnn || [])].map(a => `
+                                <div class="p-4 ${a.target_user_id ? 'bg-indigo-900/20 border-indigo-500' : 'bg-blue-900/20 border-blue-500'} border-l-4 rounded-r-lg">
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-[10px] font-bold uppercase tracking-widest ${a.target_user_id ? 'text-indigo-400' : 'text-blue-400'}">
+                                            ${a.target_user_id ? 'Personal' : 'Global'}
+                                        </span>
+                                        <span class="text-[10px] text-slate-500">${new Date(a.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <p class="text-sm text-slate-200">${a.content}</p>
+                                </div>
+                            `).join('') || `
+                                <div class="flex flex-col items-center justify-center h-full text-slate-500 py-10">
+                                    <i class="fas fa-comment-slash text-4xl mb-2 opacity-20"></i>
+                                    <p>No new updates</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCloudList(container) {
+            container.innerHTML = `
+                <h2 class="text-2xl font-bold mb-6">Available Cloud Services</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    ${cloudServices.map(c => `
+                        <div class="glass-card p-4 hover:scale-105 transition-transform">
+                            <h4 class="font-bold text-blue-400 mb-1">${c.name}</h4>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span class="text-slate-400">Storage:</span>
+                                <span>${c.free}</span>
+                            </div>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span class="text-slate-400">Expiry:</span>
+                                <span>${c.expiry}</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-2 italic">${c.note}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        async function renderUserFiles(container) {
+            const { data: files } = await window.supabaseClient.from('files').select('*').order('created_at', { ascending: false });
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">My Cloud Storage</h2>
+                    <div class="flex items-center gap-2 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">
+                        <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        <span class="text-xs font-bold text-slate-300">${files?.length || 0} Files</span>
+                    </div>
+                </div>
+                <div class="glass-card overflow-x-auto">
+                    <table class="w-full text-left min-w-[600px]">
+                        <thead class="bg-slate-800/30 border-b border-slate-800">
+                            <tr>
+                                <th class="p-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Resource</th>
+                                <th class="p-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Service Provider</th>
+                                <th class="p-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Data Size</th>
+                                <th class="p-4 text-[10px] font-bold uppercase tracking-wider text-slate-500">Lifecycle Expiry</th>
+                                <th class="p-4 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-right">Utility</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">
+                            ${files?.map(f => `
+                                <tr class="hover:bg-white/5 transition">
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-lg bg-blue-900/20 flex items-center justify-center text-blue-400">
+                                                <i class="fas fa-file-alt"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-sm font-medium truncate max-w-[150px]">${f.name}</p>
+                                                <p class="text-[9px] text-slate-600">${new Date(f.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-blue-900/30 text-blue-300 border border-blue-800/50">
+                                            ${f.cloud_provider}
+                                        </span>
+                                    </td>
+                                    <td class="p-4 text-sm font-medium text-slate-300">${(f.size / 1024 / 1024).toFixed(2)} MB</td>
+                                    <td class="p-4 text-xs font-medium ${f.expiry_date ? 'text-yellow-500/80' : 'text-slate-600'}">
+                                        ${f.expiry_date ? `<i class="far fa-clock mr-1"></i> ${new Date(f.expiry_date).toLocaleDateString()}` : 'Permanent'}
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <div class="flex justify-end gap-4">
+                                            <button onclick="downloadFile('${f.storage_path}', '${f.name}')" class="text-slate-400 hover:text-blue-400 transition" title="Download">
+                                                <i class="fas fa-download"></i>
+                                            </button>
+                                            <button onclick="deleteFile('${f.id}', '${f.storage_path}')" class="text-slate-400 hover:text-red-400 transition" title="Delete Permanent">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('') || `
+                                <tr>
+                                    <td colspan="5" class="p-16 text-center">
+                                        <div class="opacity-30">
+                                            <i class="fas fa-folder-open text-5xl mb-4"></i>
+                                            <p class="text-lg">No files detected in your cloud storage</p>
+                                            <button onclick="switchTab('user-home')" class="mt-4 text-blue-400 underline underline-offset-4 hover:text-blue-300">Start uploading now</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // --- ADMIN FUNCTIONS ---
+
+        async function renderAdminStats(container) {
+            const { count: userCount } = await window.supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
+            const { count: fileCount } = await window.supabaseClient.from('files').select('*', { count: 'exact', head: true });
+            const { data: files } = await window.supabaseClient.from('files').select('size');
+            const totalStorage = files?.reduce((acc, curr) => acc + curr.size, 0) || 0;
+
+            container.innerHTML = `
+                <h2 class="text-2xl font-bold mb-6">Platform Overview</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-card p-6 border-l-4 border-blue-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Users</p>
+                                <p class="text-4xl font-bold mt-1">${userCount}</p>
+                            </div>
+                            <i class="fas fa-users text-3xl text-slate-700"></i>
+                        </div>
+                    </div>
+                    <div class="glass-card p-6 border-l-4 border-purple-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Files</p>
+                                <p class="text-4xl font-bold mt-1">${fileCount}</p>
+                            </div>
+                            <i class="fas fa-file-alt text-3xl text-slate-700"></i>
+                        </div>
+                    </div>
+                    <div class="glass-card p-6 border-l-4 border-green-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">Storage Volume</p>
+                                <p class="text-4xl font-bold mt-1">${(totalStorage / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                            <i class="fas fa-database text-3xl text-slate-700"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card p-6">
+                    <div class="flex items-center gap-2 mb-4">
+                        <i class="fas fa-bullhorn text-blue-400"></i>
+                        <h3 class="text-xl font-bold">Broadcast Communication</h3>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Message Content</label>
+                            <textarea id="ann-text" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-4 h-28 focus:border-blue-500 outline-none transition" placeholder="Type your message to users here..."></textarea>
+                        </div>
+                        <div class="flex flex-wrap gap-6 items-center bg-slate-800/30 p-4 rounded-lg">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" id="ann-is-marquee" class="w-5 h-5 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-medium group-hover:text-blue-400">Enable Top Marquee</span>
+                            </label>
+                            <div class="flex-1 min-w-[200px]">
+                                <label class="text-[10px] font-bold text-slate-500 uppercase block mb-1">Target User UUID (Leave empty for Global)</label>
+                                <input type="text" id="ann-target" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm focus:border-blue-500 outline-none" placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000">
+                            </div>
+                            <button onclick="postAnnouncement()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold transition transform active:scale-95 shadow-lg shadow-blue-900/20">
+                                <i class="fas fa-paper-plane mr-2"></i> Broadcast
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderAdminUsers(container) {
+            const { data: users } = await window.supabaseClient.from('profiles').select('*');
+            
+            container.innerHTML = `
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">User Management</h2>
+                    <button onclick="alert('Use Supabase Auth Dashboard to manually create users for security.')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm transition">
+                        <i class="fas fa-plus mr-2"></i> New User
+                    </button>
+                </div>
+                <div class="glass-card overflow-x-auto">
+                    <table class="w-full text-left min-w-[600px]">
+                        <thead class="bg-slate-800/50 border-b border-slate-700">
+                            <tr>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">User Identification</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">Access Role</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">Account Status</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500 text-right">Administrative Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">
+                            ${users?.map(u => `
+                                <tr class="hover:bg-white/5 transition">
+                                    <td class="p-4">
+                                        <p class="text-sm font-medium">${u.email}</p>
+                                        <p class="text-[10px] text-slate-500 font-mono">${u.id}</p>
+                                    </td>
+                                    <td class="p-4">
+                                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-purple-900/40 text-purple-400' : 'bg-blue-900/40 text-blue-400'}">
+                                            ${u.role}
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <span class="w-2 h-2 rounded-full ${u.is_blocked ? 'bg-red-500' : 'bg-green-500'}"></span>
+                                            <span class="text-sm ${u.is_blocked ? 'text-red-400' : 'text-green-400'} font-medium">
+                                                ${u.is_blocked ? 'Suspended' : 'Operational'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4 text-right">
+                                        <div class="flex justify-end gap-2">
+                                            <button onclick="toggleBlock('${u.id}', ${u.is_blocked})" class="px-3 py-1.5 rounded text-xs font-bold border transition ${u.is_blocked ? 'border-green-600 text-green-600 hover:bg-green-600/10' : 'border-red-900 text-red-400 hover:bg-red-400/10'}">
+                                                <i class="fas ${u.is_blocked ? 'fa-user-check' : 'fa-user-slash'} mr-1"></i> ${u.is_blocked ? 'Activate' : 'Suspend'}
+                                            </button>
+                                            ${u.role === 'user' ? `
+                                                <button onclick="makeAdmin('${u.id}')" class="px-3 py-1.5 rounded text-xs font-bold border border-blue-600 text-blue-400 hover:bg-blue-400/10 transition">
+                                                    <i class="fas fa-shield-alt mr-1"></i> Promote
+                                                </button>
+                                            ` : ''}
+                                            <button onclick="alert('User deletion should be handled via Supabase Auth panel for consistency.')" class="px-3 py-1.5 rounded text-xs font-bold text-slate-500 hover:text-red-400 transition">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function renderAdminFiles(container) {
+            const { data: files } = await window.supabaseClient.from('files').select('*, profiles(email)').order('created_at', { ascending: false });
+            
+            container.innerHTML = `
+                <h2 class="text-2xl font-bold mb-6">Global File Repository</h2>
+                <div class="glass-card overflow-x-auto">
+                    <table class="w-full text-left min-w-[700px]">
+                        <thead class="bg-slate-800/50 border-b border-slate-700">
+                            <tr>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">File Owner</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">Resource Name</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">Cloud Target</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500">Data Size</th>
+                                <th class="p-4 text-xs font-bold uppercase text-slate-500 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800">
+                            ${files?.map(f => `
+                                <tr class="hover:bg-white/5 transition">
+                                    <td class="p-4">
+                                        <p class="text-xs font-medium">${f.profiles?.email || 'System'}</p>
+                                        <p class="text-[9px] text-slate-600 font-mono mt-1">${f.user_id}</p>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <i class="fas fa-file text-slate-500"></i>
+                                            <p class="text-sm font-medium truncate max-w-[200px]">${f.name}</p>
+                                        </div>
+                                    </td>
+                                    <td class="p-4 text-sm font-bold text-blue-400">${f.cloud_provider}</td>
+                                    <td class="p-4 text-sm text-slate-400">${(f.size / 1024 / 1024).toFixed(2)} MB</td>
+                                    <td class="p-4 text-right">
+                                        <div class="flex justify-end gap-3">
+                                            <button onclick="downloadFile('${f.storage_path}', '${f.name}')" class="text-blue-400 hover:text-blue-200 transition p-1"><i class="fas fa-download"></i></button>
+                                            <button onclick="deleteFile('${f.id}', '${f.storage_path}')" class="text-red-500 hover:text-red-300 transition p-1"><i class="fas fa-trash-alt"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('') || '<tr><td colspan="5" class="p-10 text-center text-slate-500 italic">No files found in global storage</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // --- FILE OPERATIONS ---
+
+        async function handleFileUpload(input) {
+            const file = input.files[0];
+            const cloud = document.getElementById('upload-cloud').value;
+            if (!file) return;
+
+            // Simple expiry logic for some clouds
+            let expiryDate = null;
+            if (cloud === 'Mega' || cloud === 'MediaFire' || cloud === 'TeraBox') {
+                const date = new Date();
+                date.setMonth(date.getMonth() + 6); // 6 months default expiry for these
+                expiryDate = date.toISOString();
+            }
+
+            // Visual feedback
+            const uploadBtn = input.parentElement;
+            const originalContent = uploadBtn.innerHTML;
+            uploadBtn.innerHTML = `<div class="py-4"><i class="fas fa-circle-notch fa-spin text-4xl text-blue-500 mb-2"></i><p>Uploading ${file.name}...</p></div>`;
+            uploadBtn.onclick = null;
+
+            const filePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+            
+            const { data, error } = await window.supabaseClient.storage.from('cloud-files').upload(filePath, file);
+            
+            if (error) {
+                alert(error.message);
+                uploadBtn.innerHTML = originalContent;
+                uploadBtn.onclick = () => document.getElementById('file-input').click();
+                return;
+            }
+
+            const { error: dbError } = await window.supabaseClient.from('files').insert([{
+                user_id: currentUser.id,
+                name: file.name,
+                size: file.size,
+                cloud_provider: cloud,
+                storage_path: filePath,
+                expiry_date: expiryDate
+            }]);
+
+            if (dbError) {
+                alert("Metadata save failed: " + dbError.message);
+            } else {
+                switchTab('my-files');
+            }
+        }
+
+        async function downloadFile(path, filename) {
+            const { data, error } = await window.supabaseClient.storage.from('cloud-files').download(path);
+            if (error) return alert(error.message);
+            
+            const url = window.URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+        }
+
+        async function deleteFile(id, path) {
+            if (!confirm("Are you sure?")) return;
+            
+            await window.supabaseClient.storage.from('cloud-files').remove([path]);
+            await window.supabaseClient.from('files').delete().eq('id', id);
+            switchTab(activeTab);
+        }
+
+        // --- ADMIN ACTIONS ---
+        async function postAnnouncement() {
+            const content = document.getElementById('ann-text').value;
+            const is_marquee = document.getElementById('ann-is-marquee').checked;
+            const target_user_id = document.getElementById('ann-target').value || null;
+
+            if(!content) return;
+
+            const { error } = await window.supabaseClient.from('announcements').insert([{ content, is_marquee, target_user_id }]);
+            if (error) alert(error.message);
+            else {
+                alert("Success");
+                renderAdminStats(document.getElementById('content-area'));
+                loadMarquee();
+            }
+        }
+
+        async function toggleBlock(uid, currentStatus) {
+            const { error } = await window.supabaseClient.from('profiles').update({ is_blocked: !currentStatus }).eq('id', uid);
+            if (error) alert(error.message);
+            else switchTab('admin-users');
+        }
+
+        async function makeAdmin(uid) {
+            const { error } = await window.supabaseClient.from('profiles').update({ role: 'admin' }).eq('id', uid);
+            if (error) alert(error.message);
+            else switchTab('admin-users');
+        }
+
+        // Init
+        checkSession();
+    </script>
+</body>
+</html>
