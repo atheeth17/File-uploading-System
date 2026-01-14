@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudVault - Multi-Cloud File Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * { font-family: 'Inter', sans-serif; }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        .marquee {
+            animation: marquee 20s linear infinite;
+        }
+        
+        @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .sidebar-link.active {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+        
+        .upload-zone {
+            border: 2px dashed #667eea;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover, .upload-zone.dragover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #764ba2;
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        
+        .modal {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        
+        .modal.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        .modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a2e; }
+        ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    
+    <!-- Announcement Bar -->
+    <div id="announcementBar" class="hidden gradient-bg py-2 px-4 overflow-hidden">
+        <div class="marquee whitespace-nowrap">
+            <span id="announcementText" class="font-medium"></span>
+        </div>
+    </div>
+
+    <!-- Login/Register Page -->
+    <div id="authPage" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full gradient-bg mb-4">
+                    <i class="fas fa-cloud text-4xl"></i>
+                </div>
+                <h1 class="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">CloudVault</h1>
+                <p class="text-gray-400 mt-2">Multi-Cloud File Management System</p>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="loginForm" class="glass rounded-2xl p-8 card-hover">
+                <h2 class="text-2xl font-bold mb-6 text-center">Welcome Back</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                        <div class="relative">
+                            <i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="text" id="loginUsername" class="w-full bg-gray-800/50 border border-gray-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition" placeholder="Enter username">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                        <div class="relative">
+                            <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="loginPassword" class="w-full bg-gray-800/50 border border-gray-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition" placeholder="Enter password">
+                        </div>
+                    </div>
+                    <button onclick="handleLogin()" class="w-full gradient-bg py-3 rounded-xl font-semibold hover:opacity-90 transition">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Login
+                    </button>
+                    <p class="text-center text-gray-400">Don't have an account? <a href="#" onclick="showRegister()" class="text-purple-400 hover:underline">Sign Up</a></p>
+                </div>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="registerForm" class="glass rounded-2xl p-8 card-hover hidden">
+                <h2 class="text-2xl font-bold mb-6 text-center">Create Account</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                        <div class="relative">
+                            <i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="text" id="regUsername" class="w-full bg-gray-800/50 border border-gray-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition" placeholder="Choose username">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                        <div class="relative">
+                            <i class="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="email" id="regEmail" class="w-full bg-gray-800/50 border border-gray-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition" placeholder="Enter email">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                        <div class="relative">
+                            <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="regPassword" class="w-full bg-gray-800/50 border border-gray-700 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-purple-500 transition" placeholder="Create password">
+                        </div>
+                    </div>
+                    <button onclick="handleRegister()" class="w-full gradient-bg py-3 rounded-xl font-semibold hover:opacity-90 transition">
+                        <i class="fas fa-user-plus mr-2"></i>Sign Up
+                    </button>
+                    <p class="text-center text-gray-400">Already have an account? <a href="#" onclick="showLogin()" class="text-purple-400 hover:underline">Login</a></p>
+                </div>
+            </div>
+            
+            <!-- Admin Login -->
+            <div class="text-center mt-6">
+                <button onclick="showAdminLogin()" class="text-gray-500 hover:text-purple-400 text-sm transition">
+                    <i class="fas fa-shield-alt mr-1"></i>Admin Access
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboardPage" class="hidden min-h-screen">
+        <!-- Mobile Header -->
+        <header class="lg:hidden gradient-bg p-4 flex items-center justify-between">
+            <button onclick="toggleSidebar()" class="text-xl"><i class="fas fa-bars"></i></button>
+            <h1 class="font-bold">CloudVault</h1>
+            <button onclick="handleLogout()" class="text-xl"><i class="fas fa-sign-out-alt"></i></button>
+        </header>
+
+        <div class="flex">
+            <!-- Sidebar -->
+            <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-64 bg-gray-800 transform -translate-x-full lg:translate-x-0 transition-transform">
+                <div class="p-6">
+                    <div class="flex items-center gap-3 mb-8">
+                        <div class="w-12 h-12 rounded-full gradient-bg flex items-center justify-center">
+                            <i class="fas fa-cloud text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="font-bold text-lg">CloudVault</h1>
+                            <p class="text-xs text-gray-400" id="userRoleBadge">User</p>
+                        </div>
+                    </div>
+                    
+                    <nav class="space-y-2">
+                        <a href="#" onclick="showSection('dashboard')" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-700 transition">
+                            <i class="fas fa-home w-5"></i>Dashboard
+                        </a>
+                        <a href="#" onclick="showSection('upload')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-700 transition">
+                            <i class="fas fa-upload w-5"></i>Upload Files
+                        </a>
+                        <a href="#" onclick="showSection('myFiles')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-700 transition">
+                            <i class="fas fa-folder w-5"></i>My Files
+                        </a>
+                        <a href="#" onclick="showSection('cloudServices')" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-700 transition">
+                            <i class="fas fa-cloud-upload-alt w-5"></i>Cloud Services
+                        </a>
+                        <a href="#" id="adminLink" onclick="showSection('admin')" class="sidebar-link hidden items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-700 transition">
+                            <i class="fas fa-cog w-5"></i>Admin Panel
+                        </a>
+                    </nav>
+                </div>
+                
+                <div class="absolute bottom-0 left-0 right-0 p-6">
+                    <div class="glass rounded-xl p-4 mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-blue-500 flex items-center justify-center">
+                                <span id="userInitial" class="font-bold">U</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p id="sidebarUsername" class="font-medium truncate">Username</p>
+                                <p id="sidebarEmail" class="text-xs text-gray-400 truncate">email@example.com</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="handleLogout()" class="w-full bg-red-500/20 text-red-400 py-3 rounded-xl hover:bg-red-500/30 transition">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Sidebar Overlay -->
+            <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 lg:hidden hidden"></div>
+
+            <!-- Main Content -->
+            <main class="flex-1 p-4 lg:p-8 min-h-screen">
+                <!-- Dashboard Section -->
+                <section id="dashboardSection" class="section">
+                    <h2 class="text-2xl font-bold mb-6">Dashboard Overview</h2>
+                    
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div class="glass rounded-2xl p-6 card-hover">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                    <i class="fas fa-file text-blue-400 text-xl"></i>
+                                </div>
+                                <span class="text-green-400 text-sm"><i class="fas fa-arrow-up"></i> 12%</span>
+                            </div>
+                            <h3 id="totalFiles" class="text-3xl font-bold">0</h3>
+                            <p class="text-gray-400">Total Files</p>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6 card-hover">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                    <i class="fas fa-hdd text-purple-400 text-xl"></i>
+                                </div>
+                                <span class="text-green-400 text-sm"><i class="fas fa-arrow-up"></i> 8%</span>
+                            </div>
+                            <h3 id="storageUsed" class="text-3xl font-bold">0 MB</h3>
+                            <p class="text-gray-400">Storage Used</p>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6 card-hover">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                    <i class="fas fa-cloud text-green-400 text-xl"></i>
+                                </div>
+                            </div>
+                            <h3 id="activeServices" class="text-3xl font-bold">0</h3>
+                            <p class="text-gray-400">Active Services</p>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6 card-hover">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                                    <i class="fas fa-clock text-orange-400 text-xl"></i>
+                                </div>
+                            </div>
+                            <h3 id="expiringFiles" class="text-3xl font-bold">0</h3>
+                            <p class="text-gray-400">Expiring Soon</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Files & Cloud Status -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="glass rounded-2xl p-6">
+                            <h3 class="text-xl font-bold mb-4">Recent Files</h3>
+                            <div id="recentFilesList" class="space-y-3">
+                                <p class="text-gray-400 text-center py-8">No files uploaded yet</p>
+                            </div>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6">
+                            <h3 class="text-xl font-bold mb-4">Cloud Services Status</h3>
+                            <div id="cloudStatusList" class="space-y-3">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Upload Section -->
+                <section id="uploadSection" class="section hidden">
+                    <h2 class="text-2xl font-bold mb-6">Upload Files</h2>
+                    
+                    <!-- Upload Zone -->
+                    <div id="uploadZone" class="upload-zone rounded-2xl p-12 text-center cursor-pointer mb-6" onclick="document.getElementById('fileInput').click()">
+                        <input type="file" id="fileInput" class="hidden" multiple onchange="handleFileSelect(event)">
+                        <i class="fas fa-cloud-upload-alt text-6xl text-purple-400 mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Drag & Drop Files Here</h3>
+                        <p class="text-gray-400">or click to browse from your device</p>
+                    </div>
+
+                    <!-- Selected Files -->
+                    <div id="selectedFiles" class="hidden glass rounded-2xl p-6 mb-6">
+                        <h3 class="font-semibold mb-4">Selected Files</h3>
+                        <div id="selectedFilesList" class="space-y-3"></div>
+                    </div>
+
+                    <!-- Cloud Service Selection -->
+                    <div class="glass rounded-2xl p-6 mb-6">
+                        <h3 class="font-semibold mb-4">Select Cloud Service</h3>
+                        <div id="cloudServicesGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Upload Button -->
+                    <button id="uploadBtn" onclick="handleUpload()" class="w-full gradient-bg py-4 rounded-xl font-semibold hover:opacity-90 transition disabled:opacity-50" disabled>
+                        <i class="fas fa-upload mr-2"></i>Upload Files
+                    </button>
+
+                    <!-- Upload Progress -->
+                    <div id="uploadProgress" class="hidden glass rounded-2xl p-6 mt-6">
+                        <h3 class="font-semibold mb-4">Uploading...</h3>
+                        <div class="w-full bg-gray-700 rounded-full h-4 mb-4">
+                            <div id="progressBar" class="progress-bar bg-gradient-to-r from-purple-500 to-pink-500 h-4 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <p id="progressText" class="text-center text-gray-400">0%</p>
+                    </div>
+                </section>
+
+                <!-- My Files Section -->
+                <section id="myFilesSection" class="section hidden">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                        <h2 class="text-2xl font-bold">My Files</h2>
+                        <div class="flex gap-3">
+                            <input type="text" id="searchFiles" placeholder="Search files..." class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 focus:outline-none focus:border-purple-500" onkeyup="filterFiles()">
+                            <select id="filterService" class="bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 focus:outline-none" onchange="filterFiles()">
+                                <option value="">All Services</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="filesList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <p class="text-gray-400 text-center py-8 col-span-full">No files found</p>
+                    </div>
+                </section>
+
+                <!-- Cloud Services Section -->
+                <section id="cloudServicesSection" class="section hidden">
+                    <h2 class="text-2xl font-bold mb-6">Cloud Services</h2>
+                    <div id="allCloudServices" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <!-- Populated by JS -->
+                    </div>
+                </section>
+
+                <!-- Admin Section -->
+                <section id="adminSection" class="section hidden">
+                    <h2 class="text-2xl font-bold mb-6">Admin Panel</h2>
+                    
+                    <!-- Admin Stats -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div class="glass rounded-2xl p-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                    <i class="fas fa-users text-blue-400 text-xl"></i>
+                                </div>
+                                <div>
+                                    <h3 id="adminTotalUsers" class="text-2xl font-bold">0</h3>
+                                    <p class="text-gray-400">Total Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                                    <i class="fas fa-user-check text-green-400 text-xl"></i>
+                                </div>
+                                <div>
+                                    <h3 id="adminActiveUsers" class="text-2xl font-bold">0</h3>
+                                    <p class="text-gray-400">Active Users</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                                    <i class="fas fa-file-alt text-purple-400 text-xl"></i>
+                                </div>
+                                <div>
+                                    <h3 id="adminTotalFiles" class="text-2xl font-bold">0</h3>
+                                    <p class="text-gray-400">Total Files</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass rounded-2xl p-6">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center">
+                                    <i class="fas fa-user-slash text-red-400 text-xl"></i>
+                                </div>
+                                <div>
+                                    <h3 id="adminBlockedUsers" class="text-2xl font-bold">0</h3>
+                                    <p class="text-gray-400">Blocked Users</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Tabs -->
+                    <div class="flex gap-2 mb-6 overflow-x-auto pb-2">
+                        <button onclick="showAdminTab('users')" class="admin-tab active px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 whitespace-nowrap">Users</button>
+                        <button onclick="showAdminTab('files')" class="admin-tab px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 whitespace-nowrap">All Files</button>
+                        <button onclick="showAdminTab('announcements')" class="admin-tab px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 whitespace-nowrap">Announcements</button>
+                        <button onclick="showAdminTab('createUser')" class="admin-tab px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 whitespace-nowrap">Create User</button>
+                    </div>
+
+                    <!-- Users Tab -->
+                    <div id="usersTab" class="admin-tab-content glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Manage Users</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="text-left text-gray-400 border-b border-gray-700">
+                                        <th class="pb-4">User</th>
+                                        <th class="pb-4">Email</th>
+                                        <th class="pb-4">Role</th>
+                                        <th class="pb-4">Status</th>
+                                        <th class="pb-4">Files</th>
+                                        <th class="pb-4">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                    <tr><td colspan="6" class="text-center py-8 text-gray-400">No users found</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Files Tab -->
+                    <div id="filesTab" class="admin-tab-content hidden glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-4">All Files</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="text-left text-gray-400 border-b border-gray-700">
+                                        <th class="pb-4">File Name</th>
+                                        <th class="pb-4">User</th>
+                                        <th class="pb-4">Service</th>
+                                        <th class="pb-4">Size</th>
+                                        <th class="pb-4">Uploaded</th>
+                                        <th class="pb-4">Expiry</th>
+                                        <th class="pb-4">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allFilesTableBody">
+                                    <tr><td colspan="7" class="text-center py-8 text-gray-400">No files found</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Announcements Tab -->
+                    <div id="announcementsTab" class="admin-tab-content hidden glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Create Announcement</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Announcement Text</label>
+                                <input type="text" id="announcementInput" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500" placeholder="Enter announcement message">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Target Audience</label>
+                                <select id="announcementTarget" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none">
+                                    <option value="all">All Users</option>
+                                    <option value="specific">Specific User</option>
+                                </select>
+                            </div>
+                            <div id="specificUserDiv" class="hidden">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Select User</label>
+                                <select id="announcementUser" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none">
+                                    <option value="">Select user</option>
+                                </select>
+                            </div>
+                            <button onclick="createAnnouncement()" class="w-full gradient-bg py-3 rounded-xl font-semibold hover:opacity-90 transition">
+                                <i class="fas fa-bullhorn mr-2"></i>Send Announcement
+                            </button>
+                        </div>
+                        
+                        <h4 class="text-lg font-semibold mt-8 mb-4">Active Announcements</h4>
+                        <div id="announcementsList" class="space-y-3">
+                            <p class="text-gray-400">No active announcements</p>
+                        </div>
+                    </div>
+
+                    <!-- Create User Tab -->
+                    <div id="createUserTab" class="admin-tab-content hidden glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-4">Create New User</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                                <input type="text" id="newUsername" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500" placeholder="Enter username">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                                <input type="email" id="newEmail" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500" placeholder="Enter email">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                                <input type="password" id="newPassword" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500" placeholder="Enter password">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">Role</label>
+                                <select id="newRole" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none">
+                                    <option value="user">User</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <button onclick="adminCreateUser()" class="w-full gradient-bg py-3 rounded-xl font-semibold hover:opacity-90 transition">
+                                <i class="fas fa-user-plus mr-2"></i>Create User
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="modal hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div class="glass rounded-2xl p-8 w-full max-w-md">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Admin Login</h2>
+                <button onclick="closeAdminLogin()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Admin Username</label>
+                    <input type="text" id="adminUsername" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500" placeholder="Enter admin username">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Admin Password</label>
+                    <input type="password" id="adminPassword" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500" placeholder="Enter admin password">
+                </div>
+                <button onclick="handleAdminLogin()" class="w-full gradient-bg py-3 rounded-xl font-semibold hover:opacity-90 transition">
+                    <i class="fas fa-shield-alt mr-2"></i>Admin Access
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div class="glass rounded-xl px-6 py-4 flex items-center gap-3">
+            <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // SUPABASE CONFIGURATION - REPLACE WITH YOUR CREDENTIALS
+        // ==========================================
+        const SUPABASE_URL = 'https://gmodezefsiurpglzzuap.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_qU-FqSluyKbd1WXMpSXhsA_Q7cL0bts';
+        
+        // Initialize Supabase
+        let supabase = null;
+        try {
+            if (SUPABASE_URL !== 'https://gmodezefsiurpglzzuap.supabase.co') {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch (e) {
+            console.log('Supabase not configured yet');
+        }
+
+        // ==========================================
+        // CLOUD SERVICES DATA
+        // ==========================================
+        const cloudServices = [
+            { id: 'aws_s3', name: 'Amazon S3', icon: 'fab fa-aws', color: 'text-orange-400', expiry: '90 days', storage: '5GB', description: 'Scalable object storage', api: 'AWS SDK' },
+            { id: 'google_drive', name: 'Google Drive', icon: 'fab fa-google-drive', color: 'text-yellow-400', expiry: 'Permanent', storage: '15GB', description: 'Personal cloud storage', api: 'Drive API' },
+            { id: 'dropbox', name: 'Dropbox', icon: 'fab fa-dropbox', color: 'text-blue-400', expiry: 'Permanent', storage: '2GB', description: 'File hosting service', api: 'Dropbox API' },
+            { id: 'onedrive', name: 'OneDrive', icon: 'fab fa-microsoft', color: 'text-blue-500', expiry: 'Permanent', storage: '5GB', description: 'Microsoft cloud storage', api: 'OneDrive API' },
+            { id: 'box', name: 'Box', icon: 'fab fa-box', color: 'text-blue-300', expiry: 'Permanent', storage: '10GB', description: 'Enterprise content management', api: 'Box API' },
+            { id: 'mega', name: 'MEGA', icon: 'fas fa-m', color: 'text-red-400', expiry: 'Permanent', storage: '20GB', description: 'Encrypted cloud storage', api: 'MEGA SDK' },
+            { id: 'pcloud', name: 'pCloud', icon: 'fas fa-cloud', color: 'text-cyan-400', expiry: 'Permanent', storage: '10GB', description: 'Swiss secure storage', api: 'pCloud API' },
+            { id: 'icloud', name: 'iCloud', icon: 'fab fa-apple', color: 'text-gray-300', expiry: 'Permanent', storage: '5GB', description: 'Apple cloud service', api: 'CloudKit API' },
+            { id: 'mediafire', name: 'MediaFire', icon: 'fas fa-fire', color: 'text-orange-500', expiry: '60 days', storage: '10GB', description: 'File sharing platform', api: 'MediaFire API' },
+            { id: 'wetransfer', name: 'WeTransfer', icon: 'fas fa-paper-plane', color: 'text-pink-400', expiry: '7 days', storage: 'Unlimited', description: 'File transfer service', api: 'WeTransfer API' },
+            { id: 'send_space', name: 'SendSpace', icon: 'fas fa-share-alt', color: 'text-green-400', expiry: '30 days', storage: 'Unlimited', description: 'Large file transfers', api: 'SendSpace API' },
+            { id: 'file_upload', name: 'FileUpload', icon: 'fas fa-upload', color: 'text-purple-400', expiry: '14 days', storage: '5GB', description: 'Simple file hosting', api: 'FileUpload API' },
+            { id: 'mega_nz', name: 'MEGA.nz', icon: 'fas fa-shield-alt', color: 'text-red-500', expiry: 'Permanent', storage: '50GB', description: 'End-to-end encryption', api: 'MEGA API' },
+            { id: 'sync', name: 'Sync.com', icon: 'fas fa-sync', color: 'text-indigo-400', expiry: 'Permanent', storage: '5GB', description: 'Secure cloud storage', api: 'Sync API' },
+            { id: 'tresorit', name: 'Tresorit', icon: 'fas fa-lock', color: 'text-teal-400', expiry: 'Permanent', storage: '3GB', description: 'End-to-end encrypted', api: 'Tresorit API' },
+            { id: 'degoo', name: 'Degoo', icon: 'fas fa-database', color: 'text-yellow-300', expiry: 'Permanent', storage: '100GB', description: 'AI-based cloud storage', api: 'Degoo API' },
+            { id: 'idrive', name: 'IDrive', icon: 'fas fa-server', color: 'text-blue-600', expiry: 'Permanent', storage: '10GB', description: 'Cloud backup service', api: 'IDrive API' },
+            { id: 'backblaze', name: 'Backblaze B2', icon: 'fas fa-hdd', color: 'text-red-600', expiry: 'Permanent', storage: '10GB', description: 'Cloud object storage', api: 'B2 API' },
+            { id: 'wasabi', name: 'Wasabi', icon: 'fas fa-cube', color: 'text-yellow-500', expiry: 'Permanent', storage: '10GB', description: 'Hot cloud storage', api: 'Wasabi API' },
+            { id: 'digital_ocean', name: 'DigitalOcean', icon: 'fab fa-digital-ocean', color: 'text-blue-400', expiry: 'Permanent', storage: '5GB', description: 'Object storage Spaces', api: 'Spaces API' },
+            { id: 'linode', name: 'Linode Object', icon: 'fas fa-cloud-upload-alt', color: 'text-lime-400', expiry: 'Permanent', storage: '5GB', description: 'Object storage', api: 'Linode API' }
+        ];
+
+        // ==========================================
+        // APP STATE
+        // ==========================================
+        let currentUser = null;
+        let selectedFiles = [];
+        let selectedCloudService = null;
+        let users = JSON.parse(localStorage.getItem('cloudvault_users')) || [];
+        let files = JSON.parse(localStorage.getItem('cloudvault_files')) || [];
+        let announcements = JSON.parse(localStorage.getItem('cloudvault_announcements')) || [];
+        let adminCredentials = { username: 'admin', password: 'admin123' };
+
+        // Initialize admin if not exists
+        if (!users.find(u => u.username === 'admin')) {
+            users.push({
+                id: 'admin_001',
+                username: 'admin',
+                email: 'admin@cloudvault.com',
+                password: 'admin123',
+                role: 'admin',
+                status: 'active',
+                createdAt: new Date().toISOString()
+            });
+            saveUsers();
+        }
+
+        // ==========================================
+        // SUPABASE SCHEMA & FUNCTIONS
+        // ==========================================
+        
+        /*
+        ==========================================
+        SUPABASE SQL SETUP SCRIPT
+        Run this in Supabase SQL Editor:
+        ==========================================
+        
+        -- Users Table
+        CREATE TABLE users (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'user',
+            status TEXT DEFAULT 'active',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        -- Files Table
+        CREATE TABLE files (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            file_type TEXT NOT NULL,
+            cloud_service TEXT NOT NULL,
+            cloud_file_id TEXT,
+            download_url TEXT,
+            expiry_date TIMESTAMP WITH TIME ZONE,
+            uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+
+        -- Announcements Table
+        CREATE TABLE announcements (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            message TEXT NOT NULL,
+            target_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+            created_by UUID REFERENCES users(id),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            is_active BOOLEAN DEFAULT true
+        );
+
+        -- Create indexes
+        CREATE INDEX idx_files_user_id ON files(user_id);
+        CREATE INDEX idx_files_cloud_service ON files(cloud_service);
+        CREATE INDEX idx_announcements_target ON announcements(target_user_id);
+
+        -- Enable Row Level Security
+        ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE files ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+
+        -- RLS Policies
+        CREATE POLICY "Users can view own profile" ON users 
+            FOR SELECT USING (auth.uid()::text = id::text OR 
+            EXISTS (SELECT 1 FROM users WHERE role = 'admin' LIMIT 1));
+        
+        CREATE POLICY "Users can insert files" ON files 
+            FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
+        
+        CREATE POLICY "Users can view own files" ON files 
+            FOR SELECT USING (auth.uid()::text = user_id::text OR 
+            EXISTS (SELECT 1 FROM users WHERE role = 'admin' LIMIT 1));
+        
+        CREATE POLICY "Users can delete own files" ON files 
+            FOR DELETE USING (auth.uid()::text = user_id::text OR 
+            EXISTS (SELECT 1 FROM users WHERE role = 'admin' LIMIT 1));
+
+        ==========================================
+        */
+
+        // Supabase Functions (to be used when configured)
+        const supabaseAPI = {
+            async signUp(username, email, password) {
+                if (!supabase) return this.localSignUp(username, email, password);
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .insert([{ username, email, password, role: 'user', status: 'active' }])
+                        .select();
+                    if (error) throw error;
+                    return { success: true, user: data[0] };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            },
+            
+            async signIn(username, password) {
+                if (!supabase) return this.localSignIn(username, password);
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('username', username)
+                        .eq('password', password)
+                        .single();
+                    if (error) throw error;
+                    if (data.status === 'blocked') return { success: false, error: 'Account is blocked' };
+                    return { success: true, user: data };
+                } catch (e) {
+                    return { success: false, error: 'Invalid credentials' };
+                }
+            },
+            
+            async uploadFile(fileData) {
+                if (!supabase) return this.localUploadFile(fileData);
+                try {
+                    const { data, error } = await supabase
+                        .from('files')
+                        .insert([fileData])
+                        .select();
+                    if (error) throw error;
+                    return { success: true, file: data[0] };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            },
+            
+            async getUserFiles(userId) {
+                if (!supabase) return this.localGetUserFiles(userId);
+                try {
+                    const { data, error } = await supabase
+                        .from('files')
+                        .select('*')
+                        .eq('user_id', userId);
+                    if (error) throw error;
+                    return { success: true, files: data || [] };
+                } catch (e) {
+                    return { success: false, error: e.message, files: [] };
+                }
+            },
+            
+            async deleteFile(fileId) {
+                if (!supabase) return this.localDeleteFile(fileId);
+                try {
+                    const { error } = await supabase
+                        .from('files')
+                        .delete()
+                        .eq('id', fileId);
+                    if (error) throw error;
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            },
+            
+            async getAllUsers() {
+                if (!supabase) return this.localGetAllUsers();
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .select('*');
+                    if (error) throw error;
+                    return { success: true, users: data || [] };
+                } catch (e) {
+                    return { success: false, error: e.message, users: [] };
+                }
+            },
+            
+            async updateUserRole(userId, role) {
+                if (!supabase) return this.localUpdateUserRole(userId, role);
+                try {
+                    const { error } = await supabase
+                        .from('users')
+                        .update({ role })
+                        .eq('id', userId);
+                    if (error) throw error;
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            },
+            
+            async updateUserStatus(userId, status) {
+                if (!supabase) return this.localUpdateUserStatus(userId, status);
+                try {
+                    const { error } = await supabase
+                        .from('users')
+                        .update({ status })
+                        .eq('id', userId);
+                    if (error) throw error;
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            },
+            
+            async createAnnouncement(message, targetUserId) {
+                if (!supabase) return this.localCreateAnnouncement(message, targetUserId);
+                try {
+                    const { error } = await supabase
+                        .from('announcements')
+                        .insert([{ message, target_user_id: targetUserId, is_active: true }]);
+                    if (error) throw error;
+                    return { success: true };
+                } catch (e) {
+                    return { success: false, error: e.message };
+                }
+            },
+            
+            async getAnnouncements(userId) {
+                if (!supabase) return this.localGetAnnouncements(userId);
+                try {
+                    const { data, error } = await supabase
+                        .from('announcements')
+                        .select('*')
+                        .or('target_user_id.is.null,target_user_id.eq.' + userId)
+                        .eq('is_active', true);
+                    if (error) throw error;
+                    return { success: true, announcements: data || [] };
+                } catch (e) {
+                    return { success: false, error: e.message, announcements: [] };
+                }
+            },
+            
+            // Local fallback functions
+            localSignUp(username, email, password) {
+                if (users.find(u => u.username === username)) {
+                    return { success: false, error: 'Username already exists' };
+                }
+                const newUser = {
+                    id: 'user_' + Date.now(),
+                    username,
+                    email,
+                    password,
+                    role: 'user',
+                    status: 'active',
+                    createdAt: new Date().toISOString()
+                };
+                users.push(newUser);
+                saveUsers();
+                return { success: true, user: newUser };
+            },
+            
+            localSignIn(username, password) {
+                const user = users.find(u => u.username === username && u.password === password);
+                if (!user) return { success: false, error: 'Invalid credentials' };
+                if (user.status === 'blocked') return { success: false, error: 'Account is blocked' };
+                return { success: true, user };
+            },
+            
+            localUploadFile(fileData) {
+                const newFile = {
+                    id: 'file_' + Date.now(),
+                    ...fileData
+                };
+                files.push(newFile);
+                saveFiles();
+                return { success: true, file: newFile };
+            },
+            
+            localGetUserFiles(userId) {
+                return { success: true, files: files.filter(f => f.user_id === userId) };
+            },
+            
+            localDeleteFile(fileId) {
+                files = files.filter(f => f.id !== fileId);
+                saveFiles();
+                return { success: true };
+            },
+            
+            localGetAllUsers() {
+                return { success: true, users };
+            },
+            
+            localUpdateUserRole(userId, role) {
+                const user = users.find(u => u.id === userId);
+                if (user) {
+                    user.role = role;
+                    saveUsers();
+                }
+                return { success: true };
+            },
+            
+            localUpdateUserStatus(userId, status) {
+                const user = users.find(u => u.id === userId);
+                if (user) {
+                    user.status = status;
+                    saveUsers();
+                }
+                return { success: true };
+            },
+            
+            localCreateAnnouncement(message, targetUserId) {
+                announcements.push({
+                    id: 'anno_' + Date.now(),
+                    message,
+                    targetUserId,
+                    createdAt: new Date().toISOString(),
+                    active: true
+                });
+                saveAnnouncements();
+                return { success: true };
+            },
+            
+            localGetAnnouncements(userId) {
+                return { 
+                    success: true, 
+                    announcements: announcements.filter(a => 
+                        a.active && (!a.targetUserId || a.targetUserId === userId)
+                    ) 
+                };
+            }
+        };
+
+        // ==========================================
+        // LOCAL STORAGE HELPERS
+        // ==========================================
+        function saveUsers() {
+            localStorage.setItem('cloudvault_users', JSON.stringify(users));
+        }
+        function saveFiles() {
+            localStorage.setItem('cloudvault_files', JSON.stringify(files));
+        }
+        function saveAnnouncements() {
+            localStorage.setItem('cloudvault_announcements', JSON.stringify(announcements));
+        }
+
+        // ==========================================
+        // AUTH FUNCTIONS
+        // ==========================================
+        function showLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+        }
+
+        function showAdminLogin() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+            document.getElementById('adminLoginModal').classList.add('show');
+        }
+
+        function closeAdminLogin() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+            document.getElementById('adminLoginModal').classList.remove('show');
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            
+            if (!username || !password) {
+                showToast('Please fill all fields', 'error');
+                return;
+            }
+            
+            const result = await supabaseAPI.signIn(username, password);
+            if (result.success) {
+                currentUser = result.user;
+                localStorage.setItem('cloudvault_currentUser', JSON.stringify(currentUser));
+                showDashboard();
+                showToast('Welcome back, ' + currentUser.username + '!', 'success');
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('regUsername').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            
+            if (!username || !email || !password) {
+                showToast('Please fill all fields', 'error');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+            
+            const result = await supabaseAPI.signUp(username, email, password);
+            if (result.success) {
+                currentUser = result.user;
+                localStorage.setItem('cloudvault_currentUser', JSON.stringify(currentUser));
+                showDashboard();
+                showToast('Account created successfully!', 'success');
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        function handleAdminLogin() {
+            const username = document.getElementById('adminUsername').value.trim();
+            const password = document.getElementById('adminPassword').value;
+            
+            if (username === adminCredentials.username && password === adminCredentials.password) {
+                currentUser = users.find(u => u.username === 'admin');
+                localStorage.setItem('cloudvault_currentUser', JSON.stringify(currentUser));
+                closeAdminLogin();
+                showDashboard();
+                showToast('Admin access granted!', 'success');
+            } else {
+                showToast('Invalid admin credentials', 'error');
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            localStorage.removeItem('cloudvault_currentUser');
+            document.getElementById('authPage').classList.remove('hidden');
+            document.getElementById('dashboardPage').classList.add('hidden');
+            showToast('Logged out successfully', 'success');
+        }
+
+        // ==========================================
+        // DASHBOARD FUNCTIONS
+        // ==========================================
+        async function showDashboard() {
+            document.getElementById('authPage').classList.add('hidden');
+            document.getElementById('dashboardPage').classList.remove('hidden');
+            
+            // Update sidebar info
+            document.getElementById('sidebarUsername').textContent = currentUser.username;
+            document.getElementById('sidebarEmail').textContent = currentUser.email;
+            document.getElementById('userInitial').textContent = currentUser.username.charAt(0).toUpperCase();
+            document.getElementById('userRoleBadge').textContent = currentUser.role === 'admin' ? 'Administrator' : 'User';
+            
+            // Show admin link for admins
+            if (currentUser.role === 'admin') {
+                document.getElementById('adminLink').classList.remove('hidden');
+                document.getElementById('adminLink').classList.add('flex');
+            }
+            
+            // Load announcements
+            await loadAnnouncements();
+            
+            // Load dashboard data
+            await loadDashboardData();
+            
+            // Initialize cloud services
+            renderCloudServices();
+        }
+
+        async function loadAnnouncements() {
+            const result = await supabaseAPI.getAnnouncements(currentUser.id);
+            if (result.success && result.announcements.length > 0) {
+                const activeAnnouncements = result.announcements.filter(a => a.active);
+                if (activeAnnouncements.length > 0) {
+                    const text = activeAnnouncements.map(a => a.message).join(' | ');
+                    document.getElementById('announcementText').textContent = '📢 ' + text;
+                    document.getElementById('announcementBar').classList.remove('hidden');
+                }
+            }
+        }
+
+        async function loadDashboardData() {
+            const result = await supabaseAPI.getUserFiles(currentUser.id);
+            const userFiles = result.files || [];
+            
+            // Update stats
+            document.getElementById('totalFiles').textContent = userFiles.length;
+            
+            const totalStorage = userFiles.reduce((acc, f) => acc + f.file_size, 0);
+            document.getElementById('storageUsed').textContent = formatStorage(totalStorage);
+            
+            const servicesUsed = [...new Set(userFiles.map(f => f.cloud_service))];
+            document.getElementById('activeServices').textContent = servicesUsed.length;
+            
+            const expiring = userFiles.filter(f => {
+                if (!f.expiry_date) return false;
+                const expiryDate = new Date(f.expiry_date);
+                const daysUntilExpiry = Math.ceil((expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+                return daysUntilExpiry > 0 && daysUntilExpiry <= 7;
+            });
+            document.getElementById('expiringFiles').textContent = expiring.length;
+            
+            // Render recent files
+            renderRecentFiles(userFiles.slice(-5).reverse());
+            
+            // Render cloud status
+            renderCloudStatus(servicesUsed, userFiles);
+            
+            // Render all files
+            renderAllFiles(userFiles);
+        }
+
+        function renderRecentFiles(recentFiles) {
+            const container = document.getElementById('recentFilesList');
+            if (recentFiles.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8">No files uploaded yet</p>';
+                return;
+            }
+            
+            container.innerHTML = recentFiles.map(file => {
+                const service = cloudServices.find(s => s.id === file.cloud_service);
+                return `
+                    <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50 hover:bg-gray-700/50 transition">
+                        <div class="w-10 h-10 rounded-lg ${service?.color || 'text-purple-400'} bg-gray-700 flex items-center justify-center">
+                            <i class="${getFileIcon(file.file_type)}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium truncate">${file.filename}</p>
+                            <p class="text-xs text-gray-400">${formatStorage(file.file_size)} • ${service?.name || file.cloud_service}</p>
+                        </div>
+                        <span class="text-xs text-gray-500">${formatDate(file.uploaded_at)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCloudStatus(servicesUsed, userFiles) {
+            const container = document.getElementById('cloudStatusList');
+            if (servicesUsed.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-4">No services used yet</p>';
+                return;
+            }
+            
+            container.innerHTML = servicesUsed.map(serviceId => {
+                const service = cloudServices.find(s => s.id === serviceId);
+                const serviceFiles = userFiles.filter(f => f.cloud_service === serviceId);
+                return `
+                    <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50">
+                        <i class="${service?.icon || 'fas fa-cloud'} ${service?.color || 'text-purple-400'}"></i>
+                        <div class="flex-1">
+                            <p class="font-medium">${service?.name || serviceId}</p>
+                            <p class="text-xs text-gray-400">${serviceFiles.length} files</p>
+                        </div>
+                        <span class="w-2 h-2 rounded-full bg-green-400 pulse-dot"></span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ==========================================
+        // FILE UPLOAD FUNCTIONS
+        // ==========================================
+        function renderCloudServices() {
+            const container = document.getElementById('cloudServicesGrid');
+            container.innerHTML = cloudServices.map(service => `
+                <button onclick="selectCloudService('${service.id}')" 
+                    class="cloud-service-btn p-4 rounded-xl border-2 border-gray-700 hover:border-purple-500 transition text-center"
+                    data-service="${service.id}">
+                    <i class="${service.icon} ${service.color} text-2xl mb-2"></i>
+                    <p class="text-sm font-medium">${service.name}</p>
+                    <p class="text-xs text-gray-400">${service.expiry}</p>
+                </button>
+            `).join('');
+            
+            // Populate filter dropdown
+            const filterSelect = document.getElementById('filterService');
+            filterSelect.innerHTML = '<option value="">All Services</option>' + 
+                cloudServices.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            
+            // Render all cloud services section
+            const allServicesContainer = document.getElementById('allCloudServices');
+            allServicesContainer.innerHTML = cloudServices.map(service => `
+                <div class="glass rounded-2xl p-6 card-hover">
+                    <div class="flex items-center gap-4 mb-4">
+                        <div class="w-14 h-14 rounded-xl ${service.color} bg-gray-700 flex items-center justify-center">
+                            <i class="${service.icon} text-2xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">${service.name}</h3>
+                            <p class="text-gray-400 text-sm">${service.description}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Storage:</span>
+                            <span class="font-medium">${service.storage}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Expiry:</span>
+                            <span class="font-medium ${service.expiry === 'Permanent' ? 'text-green-400' : 'text-yellow-400'}">${service.expiry}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">API:</span>
+                            <span class="font-medium text-purple-400">${service.api}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectCloudService(serviceId) {
+            selectedCloudService = serviceId;
+            document.querySelectorAll('.cloud-service-btn').forEach(btn => {
+                btn.classList.remove('border-purple-500', 'bg-purple-500/10');
+                if (btn.dataset.service === serviceId) {
+                    btn.classList.add('border-purple-500', 'bg-purple-500/10');
+                }
+            });
+            updateUploadButton();
+        }
+
+        function handleFileSelect(event) {
+            const newFiles = Array.from(event.target.files);
+            selectedFiles = [...selectedFiles, ...newFiles];
+            renderSelectedFiles();
+            updateUploadButton();
+        }
+
+        function renderSelectedFiles() {
+            const container = document.getElementById('selectedFilesList');
+            const wrapper = document.getElementById('selectedFiles');
+            
+            if (selectedFiles.length === 0) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+            
+            wrapper.classList.remove('hidden');
+            container.innerHTML = selectedFiles.map((file, index) => `
+                <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-800/50">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                        <i class="${getFileIcon(file.type)} text-purple-400"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="font-medium truncate">${file.name}</p>
+                        <p class="text-xs text-gray-400">${formatStorage(file.size)}</p>
+                    </div>
+                    <button onclick="removeSelectedFile(${index})" class="text-red-400 hover:text-red-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function removeSelectedFile(index) {
+            selectedFiles.splice(index, 1);
+            renderSelectedFiles();
+            updateUploadButton();
+        }
+
+        function updateUploadButton() {
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = selectedFiles.length === 0 || !selectedCloudService;
+        }
+
+        async function handleUpload() {
+            if (selectedFiles.length === 0 || !selectedCloudService) return;
+            
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            progressDiv.classList.remove('hidden');
+            
+            const service = cloudServices.find(s => s.id === selectedCloudService);
+            
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                const progress = ((i + 1) / selectedFiles.length) * 100;
+                
+                progressBar.style.width = progress + '%';
+                progressText.textContent = Math.round(progress) + '%';
+                
+                // Calculate expiry date
+                let expiryDate = null;
+                if (service.expiry !== 'Permanent') {
+                    const daysMatch = service.expiry.match(/(\d+)/);
+                    if (daysMatch) {
+                        const days = parseInt(daysMatch[1]);
+                        expiryDate = new Date();
+                        expiryDate.setDate(expiryDate.getDate() + days);
+                    }
+                }
+                
+                const fileData = {
+                    user_id: currentUser.id,
+                    filename: file.name,
+                    file_size: file.size,
+                    file_type: file.type,
+                    cloud_service: selectedCloudService,
+                    cloud_file_id: 'cf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    download_url: '#',
+                    expiry_date: expiryDate ? expiryDate.toISOString() : null
+                };
+                
+                await supabaseAPI.uploadFile(fileData);
+                
+                // Simulate upload delay
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            selectedFiles = [];
+            selectedCloudService = null;
+            document.querySelectorAll('.cloud-service-btn').forEach(btn => {
+                btn.classList.remove('border-purple-500', 'bg-purple-500/10');
+            });
+            
+            setTimeout(() => {
+                progressDiv.classList.add('hidden');
+                progressBar.style.width = '0%';
+                showToast('Files uploaded successfully!', 'success');
+                loadDashboardData();
+                renderSelectedFiles();
+            }, 500);
+        }
+
+        // ==========================================
+        // MY FILES FUNCTIONS
+        // ==========================================
+        function renderAllFiles(userFiles) {
+            const container = document.getElementById('filesList');
+            
+            if (userFiles.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8 col-span-full">No files uploaded yet</p>';
+                return;
+            }
+            
+            container.innerHTML = userFiles.map(file => {
+                const service = cloudServices.find(s => s.id === file.cloud_service);
+                const isExpiringSoon = file.expiry_date && new Date(file.expiry_date) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                const isExpired = file.expiry_date && new Date(file.expiry_date) < new Date();
+                
+                return `
+                    <div class="glass rounded-2xl p-4 card-hover file-item" 
+                        data-name="${file.filename.toLowerCase()}" 
+                        data-service="${file.cloud_service}">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl ${service?.color || 'text-purple-400'} bg-gray-700 flex items-center justify-center shrink-0">
+                                <i class="${getFileIcon(file.file_type)} text-xl"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium truncate">${file.filename}</p>
+                                <p class="text-xs text-gray-400 mb-2">${formatStorage(file.file_size)}</p>
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="flex items-center gap-1 ${service?.color || 'text-gray-400'}">
+                                        <i class="${service?.icon || 'fas fa-cloud'}"></i>
+                                        ${service?.name || file.cloud_service}
+                                    </span>
+                                    ${isExpired ? '<span class="text-red-400">Expired</span>' : ''}
+                                    ${isExpiringSoon && !isExpired ? '<span class="text-yellow-400">Expiring Soon</span>' : ''}
+                                </div>
+                                ${file.expiry_date ? `<p class="text-xs text-gray-500 mt-1">Expires: ${formatDate(file.expiry_date)}</p>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex gap-2 mt-4">
+                            <button onclick="downloadFile('${file.id}')" class="flex-1 bg-blue-500/20 text-blue-400 py-2 rounded-lg hover:bg-blue-500/30 transition text-sm">
+                                <i class="fas fa-download mr-1"></i>Download
+                            </button>
+                            <button onclick="deleteFile('${file.id}')" class="flex-1 bg-red-500/20 text-red-400 py-2 rounded-lg hover:bg-red-500/30 transition text-sm">
+                                <i class="fas fa-trash mr-1"></i>Delete
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterFiles() {
+            const searchTerm = document.getElementById('searchFiles').value.toLowerCase();
+            const serviceFilter = document.getElementById('filterService').value;
+            
+            document.querySelectorAll('.file-item').forEach(item => {
+                const name = item.dataset.name;
+                const service = item.dataset.service;
+                
+                const matchesSearch = name.includes(searchTerm);
+                const matchesService = !serviceFilter || service === serviceFilter;
+                
+                item.style.display = matchesSearch && matchesService ? 'block' : 'none';
+            });
+        }
+
+        async function deleteFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+            
+            const result = await supabaseAPI.deleteFile(fileId);
+            if (result.success) {
+                showToast('File deleted successfully', 'success');
+                loadDashboardData();
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        function downloadFile(fileId) {
+            showToast('Download started...', 'success');
+            // In production, this would trigger actual file download from cloud service
+        }
+
+        // ==========================================
+        // ADMIN FUNCTIONS
+        // ==========================================
+        function showAdminTab(tabName) {
+            document.querySelectorAll('.admin-tab').forEach(tab => {
+                tab.classList.remove('active', 'bg-purple-500/20', 'text-purple-400');
+                tab.classList.add('bg-gray-700');
+            });
+            event.target.classList.add('active', 'bg-purple-500/20', 'text-purple-400');
+            event.target.classList.remove('bg-gray-700');
+            
+            document.querySelectorAll('.admin-tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(tabName + 'Tab').classList.remove('hidden');
+            
+            if (tabName === 'users') loadAdminUsers();
+            if (tabName === 'files') loadAdminFiles();
+        }
+
+        async function loadAdminUsers() {
+            const result = await supabaseAPI.getAllUsers();
+            const allUsers = result.users || [];
+            
+            document.getElementById('adminTotalUsers').textContent = allUsers.length;
+            document.getElementById('adminActiveUsers').textContent = allUsers.filter(u => u.status === 'active').length;
+            document.getElementById('adminBlockedUsers').textContent = allUsers.filter(u => u.status === 'blocked').length;
+            
+            const tbody = document.getElementById('usersTableBody');
+            if (allUsers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">No users found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = allUsers.map(user => {
+                const userFiles = files.filter(f => f.user_id === user.id);
+                return `
+                    <tr class="border-b border-gray-700/50">
+                        <td class="py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                                    <span class="font-bold">${user.username.charAt(0).toUpperCase()}</span>
+                                </div>
+                                <span class="font-medium">${user.username}</span>
+                            </div>
+                        </td>
+                        <td class="py-4 text-gray-400">${user.email}</td>
+                        <td class="py-4">
+                            <span class="px-3 py-1 rounded-full text-xs ${user.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}">
+                                ${user.role}
+                            </span>
+                        </td>
+                        <td class="py-4">
+                            <span class="px-3 py-1 rounded-full text-xs ${user.status === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                                ${user.status}
+                            </span>
+                        </td>
+                        <td class="py-4">${userFiles.length}</td>
+                        <td class="py-4">
+                            <div class="flex gap-2">
+                                ${user.role !== 'admin' ? `
+                                    <button onclick="toggleUserRole('${user.id}', 'admin')" class="px-3 py-1 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-sm" title="Make Admin">
+                                        <i class="fas fa-user-shield"></i>
+                                    </button>
+                                    <button onclick="toggleUserStatus('${user.id}')" class="px-3 py-1 rounded-lg ${user.status === 'active' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'} hover:opacity-80 text-sm" title="${user.status === 'active' ? 'Block' : 'Unblock'}">
+                                        <i class="fas ${user.status === 'active' ? 'fa-ban' : 'fa-check'}"></i>
+                                    </button>
+                                ` : '<span class="text-gray-500 text-sm">Protected</span>'}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Update announcement user select
+            const userSelect = document.getElementById('announcementUser');
+            userSelect.innerHTML = '<option value="">Select user</option>' + 
+                allUsers.filter(u => u.role !== 'admin').map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+        }
+
+        async function loadAdminFiles() {
+            document.getElementById('adminTotalFiles').textContent = files.length;
+            
+            const tbody = document.getElementById('allFilesTableBody');
+            if (files.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">No files found</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = files.map(file => {
+                const user = users.find(u => u.id === file.user_id);
+                const service = cloudServices.find(s => s.id === file.cloud_service);
+                return `
+                    <tr class="border-b border-gray-700/50">
+                        <td class="py-4">
+                            <div class="flex items-center gap-3">
+                                <i class="${getFileIcon(file.file_type)} text-purple-400"></i>
+                                <span class="truncate max-w-[200px]">${file.filename}</span>
+                            </div>
+                        </td>
+                        <td class="py-4">${user?.username || 'Unknown'}</td>
+                        <td class="py-4">
+                            <span class="flex items-center gap-1 ${service?.color || ''}">
+                                <i class="${service?.icon || 'fas fa-cloud'}"></i>
+                                ${service?.name || file.cloud_service}
+                            </span>
+                        </td>
+                        <td class="py-4">${formatStorage(file.file_size)}</td>
+                        <td class="py-4 text-gray-400">${formatDate(file.uploaded_at)}</td>
+                        <td class="py-4">${file.expiry_date ? formatDate(file.expiry_date) : 'Never'}</td>
+                        <td class="py-4">
+                            <button onclick="adminDeleteFile('${file.id}')" class="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function toggleUserRole(userId, newRole) {
+            await supabaseAPI.updateUserRole(userId, newRole);
+            showToast('User role updated', 'success');
+            loadAdminUsers();
+        }
+
+        async function toggleUserStatus(userId) {
+            const user = users.find(u => u.id === userId);
+            const newStatus = user.status === 'active' ? 'blocked' : 'active';
+            await supabaseAPI.updateUserStatus(userId, newStatus);
+            showToast(`User ${newStatus}`, 'success');
+            loadAdminUsers();
+        }
+
+        async function adminDeleteFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+            await supabaseAPI.deleteFile(fileId);
+            showToast('File deleted', 'success');
+            loadAdminFiles();
+            loadDashboardData();
+        }
+
+        async function createAnnouncement() {
+            const message = document.getElementById('announcementInput').value.trim();
+            const target = document.getElementById('announcementTarget').value;
+            const targetUser = document.getElementById('announcementUser').value;
+            
+            if (!message) {
+                showToast('Please enter announcement message', 'error');
+                return;
+            }
+            
+            const targetUserId = target === 'specific' ? targetUser : null;
+            await supabaseAPI.createAnnouncement(message, targetUserId);
+            
+            document.getElementById('announcementInput').value = '';
+            showToast('Announcement created', 'success');
+            renderAnnouncements();
+        }
+
+        function renderAnnouncements() {
+            const container = document.getElementById('announcementsList');
+            if (announcements.length === 0) {
+                container.innerHTML = '<p class="text-gray-400">No active announcements</p>';
+                return;
+            }
+            
+            container.innerHTML = announcements.filter(a => a.active).map(a => `
+                <div class="flex items-center justify-between p-3 rounded-xl bg-gray-800/50">
+                    <div>
+                        <p>${a.message}</p>
+                        <p class="text-xs text-gray-400 mt-1">
+                            ${a.targetUserId ? `Target: ${users.find(u => u.id === a.targetUserId)?.username || 'Unknown'}` : 'All users'}
+                        </p>
+                    </div>
+                    <button onclick="deleteAnnouncement('${a.id}')" class="text-red-400 hover:text-red-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function deleteAnnouncement(id) {
+            announcements = announcements.filter(a => a.id !== id);
+            saveAnnouncements();
+            showToast('Announcement deleted', 'success');
+            renderAnnouncements();
+        }
+
+        document.getElementById('announcementTarget').addEventListener('change', function() {
+            document.getElementById('specificUserDiv').classList.toggle('hidden', this.value !== 'specific');
+        });
+
+        async function adminCreateUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const email = document.getElementById('newEmail').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const role = document.getElementById('newRole').value;
+            
+            if (!username || !email || !password) {
+                showToast('Please fill all fields', 'error');
+                return;
+            }
+            
+            const result = await supabaseAPI.signUp(username, email, password);
+            if (result.success) {
+                await supabaseAPI.updateUserRole(result.user.id, role);
+                showToast('User created successfully', 'success');
+                document.getElementById('newUsername').value = '';
+                document.getElementById('newEmail').value = '';
+                document.getElementById('newPassword').value = '';
+                loadAdminUsers();
+            } else {
+                showToast(result.error, 'error');
+            }
+        }
+
+        // ==========================================
+        // UI HELPERS
+        // ==========================================
+        function showSection(sectionName) {
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById(sectionName + 'Section').classList.remove('hidden');
+            
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.closest('.sidebar-link').classList.add('active');
+            
+            if (window.innerWidth < 1024) {
+                toggleSidebar();
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('-translate-x-full');
+            overlay.classList.toggle('hidden');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toastIcon');
+            const msg = document.getElementById('toastMessage');
+            
+            msg.textContent = message;
+            icon.className = type === 'success' ? 'fas fa-check-circle text-green-400' : 'fas fa-exclamation-circle text-red-400';
+            
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function getFileIcon(mimeType) {
+            if (!mimeType) return 'fas fa-file';
+            if (mimeType.startsWith('image/')) return 'fas fa-file-image';
+            if (mimeType.startsWith('video/')) return 'fas fa-file-video';
+            if (mimeType.startsWith('audio/')) return 'fas fa-file-audio';
+            if (mimeType.includes('pdf')) return 'fas fa-file-pdf';
+            if (mimeType.includes('word') || mimeType.includes('document')) return 'fas fa-file-word';
+            if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'fas fa-file-excel';
+            if (mimeType.includes('zip') || mimeType.includes('rar')) return 'fas fa-file-archive';
+            if (mimeType.includes('code') || mimeType.includes('javascript') || mimeType.includes('html')) return 'fas fa-file-code';
+            return 'fas fa-file';
+        }
+
+        function formatStorage(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+            });
+        }
+
+        // Drag and drop handling
+        const uploadZone = document.getElementById('uploadZone');
+        if (uploadZone) {
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                selectedFiles = [...selectedFiles, ...droppedFiles];
+                renderSelectedFiles();
+                updateUploadButton();
+            });
+        }
+
+        // ==========================================
+        // INITIALIZATION
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUser = localStorage.getItem('cloudvault_currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                showDashboard();
+            }
+        });
+    </script>
+</body>
+</html>
